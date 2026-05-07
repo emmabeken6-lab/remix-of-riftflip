@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireAdmin } from "./auth.server";
+import { requireAdmin } from "@/server/auth.server";
 
 async function audit(adminId: string, action: string, payload: unknown) {
   await supabaseAdmin.from("admin_audit_log").insert({ admin_id: adminId, action, payload: payload as never });

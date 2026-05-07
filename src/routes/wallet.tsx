@@ -4,7 +4,7 @@ import SectionHeader from "@/components/SectionHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { RobloxLogin } from "@/components/RobloxLogin";
 import { useQuery } from "@tanstack/react-query";
-import { getWallet } from "@/server/wallet.functions";
+import { getWallet } from "@/functions/wallet.functions";
 
 export const Route = createFileRoute("/wallet")({
   component: Wallet,

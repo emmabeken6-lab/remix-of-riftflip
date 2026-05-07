@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Copy, Loader2 } from "lucide-react";
-import { lookupRobloxUser, requestVerification, verifyAndSignIn } from "@/server/auth.functions";
+import { lookupRobloxUser, requestVerification, verifyAndSignIn } from "@/functions/auth.functions";
 import { useAuth } from "@/hooks/useAuth";
 
 type Profile = {
