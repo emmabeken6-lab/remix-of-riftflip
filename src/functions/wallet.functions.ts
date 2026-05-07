@@ -128,7 +128,7 @@ export const joinCoinflip = createServerFn({ method: "POST" })
     // Atomic claim: only succeed if still open
     const { data: claimed } = await supabaseAdmin
       .from("games")
-      .update({ status: "flipping", joiner_id: user.id, joiner_side: joinerSide })
+      .update({ status: "resolved", joiner_id: user.id, joiner_side: joinerSide })
       .eq("id", game.id).eq("status", "open")
       .select("*").maybeSingle();
     if (!claimed) throw new Error("Lobby was already taken");
@@ -138,7 +138,7 @@ export const joinCoinflip = createServerFn({ method: "POST" })
       _ref_id: game.id, _meta: { game: "coinflip", side: joinerSide, role: "joiner" },
     });
     if (debitErr) {
-      await supabaseAdmin.from("games").update({ status: "open", joiner_id: null, joiner_side: null }).eq("id", game.id);
+      await supabaseAdmin.from("games").update({ status: "open", joiner_id: null, joiner_side: null }).eq("id", (game as { id: string }).id);
       throw new Error("Not enough tokens");
     }
     await supabaseAdmin.from("game_bets").insert({
@@ -148,9 +148,9 @@ export const joinCoinflip = createServerFn({ method: "POST" })
     // Flip
     const clientSeed = `${game.creator_id}:${user.id}`;
     const nonce = Date.now();
-    const r = hmacFloat(game.server_seed, clientSeed, nonce);
+    const r = hmacFloat(game.server_seed!, clientSeed, nonce);
     const result = r < 0.5 ? "heads" : "tails";
-    const winnerId = result === game.creator_side ? game.creator_id : user.id;
+    const winnerId = result === game.creator_side! ? game.creator_id : user.id;
     const payout = Number(game.wager) * 2;
 
     await supabaseAdmin.rpc("apply_transaction", {
@@ -166,7 +166,7 @@ export const joinCoinflip = createServerFn({ method: "POST" })
 
     return {
       gameId: game.id, result, winnerId, payout,
-      serverSeed: game.server_seed, serverSeedHash: game.server_seed_hash,
+      serverSeed: game.server_seed!, serverSeedHash: game.server_seed_hash!,
       clientSeed, nonce,
       creatorSide: game.creator_side, joinerSide,
     };
@@ -183,7 +183,7 @@ export const cancelCoinflip = createServerFn({ method: "POST" })
       .select("id").maybeSingle();
     if (!claimed) throw new Error("Cannot cancel");
     await supabaseAdmin.rpc("apply_transaction", {
-      _user_id: user.id, _delta: Number(g.wager), _reason: "refund",
+      _user_id: user.id, _delta: Number(g.wager), _reason: "bet_refund",
       _ref_id: g.id, _meta: { game: "coinflip", note: "lobby_cancelled" },
     });
     return { ok: true };
