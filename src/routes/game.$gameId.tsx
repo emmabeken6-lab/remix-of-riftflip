@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Coins, CircleDollarSign, Bomb } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/game/$gameId")({ component: Game });
 
@@ -11,8 +13,13 @@ const meta: Record<string, { name: string; desc: string; Icon: any; tint: string
 
 function Game() {
   const { gameId } = useParams({ from: "/game/$gameId" });
+  const { user } = useAuth();
   const data = meta[gameId] ?? { name: gameId, desc: "Coming soon.", Icon: Coins, tint: "from-muted to-muted" };
   const { Icon } = data;
+  const handlePlay = () => {
+    if (!user) { toast.error("Sign in to play."); return; }
+    toast.info("Game arena coming soon.");
+  };
   return (
     <div>
       <Link to="/games" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
@@ -26,9 +33,15 @@ function Game() {
           </div>
           <h1 className="text-3xl font-extrabold">{data.name}</h1>
           <p className="text-muted-foreground">{data.desc}</p>
-          <button className="mt-2 rounded-full bg-[image:var(--gradient-primary)] px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)]">
-            Play now
-          </button>
+          {user ? (
+            <button onClick={handlePlay} className="mt-2 rounded-full bg-[image:var(--gradient-primary)] px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)]">
+              Play now
+            </button>
+          ) : (
+            <Link to="/signin" className="mt-2 rounded-full border border-border bg-card px-6 py-2.5 text-sm font-semibold hover:bg-muted">
+              Sign in to play
+            </Link>
+          )}
         </div>
       </section>
       <div className="mt-6 rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
