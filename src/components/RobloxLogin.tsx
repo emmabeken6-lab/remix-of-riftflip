@@ -19,11 +19,12 @@ export function RobloxLogin({ onSuccess }: { onSuccess?: () => void }) {
   const [code, setCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function handleLookup(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleLookup() {
+    const u = username.trim();
+    if (u.length < 3) { toast.error("Enter a Roblox username (3+ chars)."); return; }
     setBusy(true);
     try {
-      const r = await lookupRobloxUser({ data: { username: username.trim() } });
+      const r = await lookupRobloxUser({ data: { username: u } });
       if (!r.found) {
         toast.error("That Roblox username doesn't exist.");
       } else {
@@ -31,7 +32,8 @@ export function RobloxLogin({ onSuccess }: { onSuccess?: () => void }) {
         setStep("confirm");
       }
     } catch (err) {
-      toast.error((err as Error).message);
+      console.error("lookup failed", err);
+      toast.error((err as Error).message || "Lookup failed. Try again.");
     } finally { setBusy(false); }
   }
 
@@ -43,6 +45,7 @@ export function RobloxLogin({ onSuccess }: { onSuccess?: () => void }) {
       setCode(r.code);
       setStep("verify");
     } catch (err) {
+      console.error(err);
       toast.error((err as Error).message);
     } finally { setBusy(false); }
   }
@@ -56,31 +59,36 @@ export function RobloxLogin({ onSuccess }: { onSuccess?: () => void }) {
       await refresh();
       onSuccess?.();
     } catch (err) {
+      console.error(err);
       toast.error((err as Error).message);
     } finally { setBusy(false); }
   }
 
   if (step === "username") {
     return (
-      <form onSubmit={handleLookup} className="space-y-3">
-        <label className="block text-sm font-medium">Roblox username</label>
+      <div className="space-y-3">
+        <label className="block text-sm font-medium" htmlFor="rbx-username">Roblox username</label>
         <input
+          id="rbx-username"
           autoFocus
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleLookup(); } }}
           placeholder="e.g. Builderman"
           className="w-full rounded-full border border-border bg-card px-4 py-2.5 text-sm"
           minLength={3}
           maxLength={20}
-          required
+          autoComplete="off"
         />
         <button
+          type="button"
+          onClick={() => void handleLookup()}
           disabled={busy || !username.trim()}
           className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[image:var(--gradient-primary)] px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-60"
         >
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Continue
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Sign in with Roblox
         </button>
-      </form>
+      </div>
     );
   }
 
@@ -95,8 +103,8 @@ export function RobloxLogin({ onSuccess }: { onSuccess?: () => void }) {
           <div className="text-xs text-muted-foreground">@{profile.username}</div>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { setStep("username"); setProfile(null); }} className="flex-1 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-medium">Not me</button>
-          <button onClick={handleStartVerify} disabled={busy} className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+          <button type="button" onClick={() => { setStep("username"); setProfile(null); }} className="flex-1 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-medium">Not me</button>
+          <button type="button" onClick={() => void handleStartVerify()} disabled={busy} className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
             {busy && <Loader2 className="h-4 w-4 animate-spin" />} This is me
           </button>
         </div>
@@ -108,7 +116,7 @@ export function RobloxLogin({ onSuccess }: { onSuccess?: () => void }) {
     return (
       <div className="space-y-4">
         <div className="text-sm text-muted-foreground">
-          To prove ownership, paste this code anywhere in your Roblox profile <strong>About</strong> section, save it, then click Verify.
+          Paste this code anywhere in your Roblox profile <strong>About</strong> section, save it, then click Verify.
         </div>
         <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3">
           <code className="flex-1 break-all text-center text-lg font-bold tracking-wider text-primary">{code}</code>
@@ -127,7 +135,8 @@ export function RobloxLogin({ onSuccess }: { onSuccess?: () => void }) {
           <li>Come back here and click Verify. You can remove the code after.</li>
         </ol>
         <button
-          onClick={handleVerify}
+          type="button"
+          onClick={() => void handleVerify()}
           disabled={busy}
           className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[image:var(--gradient-primary)] px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-60"
         >
