@@ -234,7 +234,7 @@ function LoginsTab() {
   return (
     <Card>
       <ul className="divide-y divide-border text-xs">
-        {(data?.logs ?? []).map((l: { id: string; roblox_username: string; ip: string | null; user_agent: string | null; success: boolean; reason: string | null; created_at: string }) => (
+        {(data?.logs ?? []).map((l: { id: string; roblox_username: string | null; ip: string | null; user_agent: string | null; success: boolean; reason: string | null; created_at: string }) => (
           <li key={l.id} className="py-2">
             <div className="flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${l.success ? "bg-[color:var(--success)]" : "bg-destructive"}`} />
