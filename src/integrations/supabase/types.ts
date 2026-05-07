@@ -158,8 +158,11 @@ export type Database = {
           client_seed: string | null
           created_at: string
           creator_id: string
+          creator_side: string | null
           game_type: string
           id: string
+          joiner_id: string | null
+          joiner_side: string | null
           nonce: number | null
           resolved_at: string | null
           result: Json | null
@@ -172,8 +175,11 @@ export type Database = {
           client_seed?: string | null
           created_at?: string
           creator_id: string
+          creator_side?: string | null
           game_type: string
           id?: string
+          joiner_id?: string | null
+          joiner_side?: string | null
           nonce?: number | null
           resolved_at?: string | null
           result?: Json | null
@@ -186,8 +192,11 @@ export type Database = {
           client_seed?: string | null
           created_at?: string
           creator_id?: string
+          creator_side?: string | null
           game_type?: string
           id?: string
+          joiner_id?: string | null
+          joiner_side?: string | null
           nonce?: number | null
           resolved_at?: string | null
           result?: Json | null
@@ -322,7 +331,7 @@ export type Database = {
       jackpot_rounds: {
         Row: {
           created_at: string
-          ends_at: string
+          ends_at: string | null
           id: string
           resolved_at: string | null
           server_seed: string
@@ -334,7 +343,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          ends_at: string
+          ends_at?: string | null
           id?: string
           resolved_at?: string | null
           server_seed: string
@@ -346,7 +355,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          ends_at?: string
+          ends_at?: string | null
           id?: string
           resolved_at?: string | null
           server_seed?: string
