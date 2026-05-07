@@ -250,7 +250,7 @@ export const enterJackpot = createServerFn({ method: "POST" })
     const user = await requireUser();
     if (Number(user.balance_tokens) < data.amount) throw new Error("Not enough tokens");
     const round = await getOrCreateOpenJackpot();
-    if (new Date(round.ends_at) < new Date()) throw new Error("Round closed");
+    if (round.ends_at && new Date(round.ends_at) < new Date()) throw new Error("Round closed");
 
     const { error: debitErr } = await supabaseAdmin.rpc("apply_transaction", {
       _user_id: user.id, _delta: -data.amount, _reason: "bet_placed",
@@ -259,10 +259,17 @@ export const enterJackpot = createServerFn({ method: "POST" })
     if (debitErr) throw new Error(debitErr.message.includes("INSUFFICIENT_FUNDS") ? "Not enough tokens" : debitErr.message);
 
     await supabaseAdmin.from("jackpot_entries").insert({ round_id: round.id, user_id: user.id, amount: data.amount });
-    await supabaseAdmin
-      .from("jackpot_rounds")
-      .update({ total_tokens: Number(round.total_tokens) + data.amount })
-      .eq("id", round.id);
+
+    // Count distinct players. Start 30s countdown when 2nd unique player joins.
+    const { data: allEntries } = await supabaseAdmin
+      .from("jackpot_entries").select("user_id, amount").eq("round_id", round.id);
+    const uniquePlayers = new Set((allEntries ?? []).map((e) => e.user_id));
+    const newTotal = (allEntries ?? []).reduce((s, e) => s + Number(e.amount), 0);
+    const updates: { total_tokens: number; ends_at?: string } = { total_tokens: newTotal };
+    if (!round.ends_at && uniquePlayers.size >= 2) {
+      updates.ends_at = new Date(Date.now() + 30_000).toISOString();
+    }
+    await supabaseAdmin.from("jackpot_rounds").update(updates).eq("id", round.id);
     return { success: true };
   });
 
@@ -273,7 +280,7 @@ export const resolveJackpot = createServerFn({ method: "POST" })
 async function resolveJackpotRound(roundId: string) {
   const { data: round } = await supabaseAdmin.from("jackpot_rounds").select("*").eq("id", roundId).maybeSingle();
   if (!round || round.status !== "open") return { resolved: false };
-  if (new Date(round.ends_at) > new Date()) return { resolved: false, reason: "not_ended" };
+  if (!round.ends_at || new Date(round.ends_at) > new Date()) return { resolved: false, reason: "not_ended" };
   const { data: entries } = await supabaseAdmin
     .from("jackpot_entries").select("user_id, amount").eq("round_id", round.id);
   if (!entries || entries.length < 2) {
