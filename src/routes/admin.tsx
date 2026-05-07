@@ -9,6 +9,7 @@ import {
   adminListEvents, adminCreateEvent, adminEndEvent,
   adminListGiveaways, adminCreateGiveaway, adminDrawGiveaway,
   adminCreateWordCrumble, adminListWordCrumbles, adminAuditLog,
+  adminLoginLogs, adminListAlts,
 } from "@/functions/admin.functions";
 
 export const Route = createFileRoute("/admin")({
@@ -25,14 +26,18 @@ function Admin() {
     <div>
       <h1 className="mb-4 text-2xl font-extrabold">Admin Panel</h1>
       <Tabs defaultValue="users">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="flex w-full flex-wrap">
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="logins">Logins</TabsTrigger>
+          <TabsTrigger value="alts">Alts</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
           <TabsTrigger value="giveaways">Giveaways</TabsTrigger>
           <TabsTrigger value="words">Word Crumbles</TabsTrigger>
           <TabsTrigger value="audit">Audit</TabsTrigger>
         </TabsList>
         <TabsContent value="users"><UsersTab /></TabsContent>
+        <TabsContent value="logins"><LoginsTab /></TabsContent>
+        <TabsContent value="alts"><AltsTab /></TabsContent>
         <TabsContent value="events"><EventsTab /></TabsContent>
         <TabsContent value="giveaways"><GiveawaysTab /></TabsContent>
         <TabsContent value="words"><WordCrumblesTab /></TabsContent>
