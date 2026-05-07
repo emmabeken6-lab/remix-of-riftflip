@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "crypto";
-import { getCookie, setCookie, deleteCookie } from "@tanstack/react-start/server";
+import { getCookie, setCookie, deleteCookie, getRequestHeader, getRequest } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const SESSION_COOKIE = "riftflip_session";
@@ -13,6 +13,22 @@ export function newSessionToken() {
   return randomBytes(32).toString("hex");
 }
 
+export function getClientIp(): string | null {
+  const xff = getRequestHeader("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  const real = getRequestHeader("x-real-ip");
+  if (real) return real;
+  try {
+    const req = getRequest();
+    // @ts-expect-error cf
+    return req?.cf?.connectingIP ?? null;
+  } catch { return null; }
+}
+
+export function getUserAgent(): string | null {
+  return getRequestHeader("user-agent") ?? null;
+}
+
 export async function createSession(userId: string) {
   const token = newSessionToken();
   const tokenHash = hashToken(token);
@@ -21,6 +37,8 @@ export async function createSession(userId: string) {
     user_id: userId,
     token_hash: tokenHash,
     expires_at: expires.toISOString(),
+    ip: getClientIp(),
+    user_agent: getUserAgent(),
   });
   setCookie(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -80,4 +98,20 @@ export async function destroySession() {
     await supabaseAdmin.from("sessions").delete().eq("token_hash", hashToken(token));
   }
   deleteCookie(SESSION_COOKIE, { path: "/" });
+}
+
+export async function logLogin(opts: {
+  userId?: string | null;
+  username: string;
+  success: boolean;
+  reason?: string;
+}) {
+  await supabaseAdmin.from("login_logs").insert({
+    user_id: opts.userId ?? null,
+    roblox_username: opts.username,
+    ip: getClientIp(),
+    user_agent: getUserAgent(),
+    success: opts.success,
+    reason: opts.reason ?? null,
+  });
 }
