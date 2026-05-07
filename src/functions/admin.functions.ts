@@ -213,3 +213,44 @@ export const adminAuditLog = createServerFn({ method: "GET" }).handler(async () 
     .limit(100);
   return { entries: data ?? [] };
 });
+
+// Login logs + anti-alt
+export const adminLoginLogs = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdmin();
+  const { data } = await supabaseAdmin
+    .from("login_logs")
+    .select("id, roblox_username, ip, user_agent, success, reason, created_at, user_id")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  return { logs: data ?? [] };
+});
+
+export const adminListAlts = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdmin();
+  // Group sessions by IP and find IPs with multiple distinct users
+  const { data: sessions } = await supabaseAdmin
+    .from("sessions")
+    .select("ip, user_id, created_at")
+    .not("ip", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  const byIp: Record<string, Set<string>> = {};
+  for (const s of sessions ?? []) {
+    if (!s.ip) continue;
+    (byIp[s.ip] ??= new Set()).add(s.user_id);
+  }
+  const altIps = Object.entries(byIp).filter(([, set]) => set.size > 1);
+  if (altIps.length === 0) return { groups: [] };
+  const userIds = Array.from(new Set(altIps.flatMap(([, set]) => Array.from(set))));
+  const { data: users } = await supabaseAdmin
+    .from("users")
+    .select("id, roblox_username, display_name, avatar_url, banned, balance_tokens, created_at")
+    .in("id", userIds);
+  const userMap = new Map((users ?? []).map((u) => [u.id, u]));
+  return {
+    groups: altIps.map(([ip, set]) => ({
+      ip,
+      users: Array.from(set).map((id) => userMap.get(id)).filter(Boolean),
+    })),
+  };
+});

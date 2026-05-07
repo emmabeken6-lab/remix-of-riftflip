@@ -31,21 +31,32 @@ export default function Layout() {
               </Link>
             )}
             {user ? (
-              <div className="flex items-center gap-2">
-                <div className="hidden text-right text-xs sm:block">
-                  <div className="font-semibold leading-tight">{user.displayName}</div>
-                  <div className="text-muted-foreground leading-tight">{user.balance.toFixed(2)} tokens</div>
+              <>
+                <Link
+                  to="/wallet"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs font-bold hover:bg-card"
+                  aria-label="Wallet"
+                >
+                  <Wallet className="h-3.5 w-3.5 text-primary" />
+                  <span>{user.balance.toFixed(2)}</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">tokens</span>
+                </Link>
+                <div className="flex items-center gap-2">
+                  <div className="hidden text-right text-xs sm:block">
+                    <div className="font-semibold leading-tight">{user.displayName}</div>
+                    <div className="text-muted-foreground leading-tight">@{user.username}</div>
+                  </div>
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt={user.username} className="h-8 w-8 rounded-full ring-1 ring-border" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-muted ring-1 ring-border" />
+                  )}
+                  <button
+                    onClick={() => signOut()}
+                    className="rounded-full border border-border px-2.5 py-1.5 text-[11px] font-medium hover:bg-card"
+                  >Sign out</button>
                 </div>
-                {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.username} className="h-8 w-8 rounded-full ring-1 ring-border" />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-muted ring-1 ring-border" />
-                )}
-                <button
-                  onClick={() => signOut()}
-                  className="rounded-full border border-border px-3 py-1.5 text-xs font-medium hover:bg-card"
-                >Sign out</button>
-              </div>
+              </>
             ) : (
               <Link to="/signin" className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Sign in</Link>
             )}
