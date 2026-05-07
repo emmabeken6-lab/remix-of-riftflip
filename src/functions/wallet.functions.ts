@@ -208,16 +208,18 @@ async function getOrCreateOpenJackpot() {
   const { data: open } = await supabaseAdmin
     .from("jackpot_rounds").select("*").eq("status", "open")
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (open && new Date(open.ends_at) > new Date()) return open;
   if (open) {
-    // expired and unresolved: try resolve via cron-like call
-    await resolveJackpotRound(open.id);
+    if (open.ends_at && new Date(open.ends_at) <= new Date()) {
+      await resolveJackpotRound(open.id);
+    } else {
+      return open;
+    }
   }
   const { seed, hash } = newServerSeed();
-  const endsAt = new Date(Date.now() + 90_000).toISOString(); // 90s rounds
+  // ends_at stays null until at least 2 players joined
   const { data: created } = await supabaseAdmin
     .from("jackpot_rounds")
-    .insert({ status: "open", ends_at: endsAt, server_seed: seed, server_seed_hash: hash })
+    .insert({ status: "open", server_seed: seed, server_seed_hash: hash })
     .select("*").single();
   return created!;
 }
