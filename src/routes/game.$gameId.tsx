@@ -190,7 +190,7 @@ function CoinflipArena() {
             </li>
           )}
           {lobbies?.filter((l) => l.status === "open").map((l) => {
-            const mine = l.creator?.display_name === user?.display_name;
+            const mine = l.creator?.display_name === user?.displayName;
             return (
               <li key={l.id} className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
                 {l.creator?.avatar_url && <img src={l.creator.avatar_url} alt="" className="h-9 w-9 rounded-full" />}
