@@ -63,9 +63,11 @@ function Chat() {
   const messages = data?.messages ?? [];
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] flex-col">
-      <SectionHeader title="Community Chat" badge={<span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-[color:var(--success)]" />} />
-      <div ref={scrollRef} className="flex-1 overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+    <div className="fixed inset-x-0 top-[57px] bottom-[60px] z-20 flex flex-col bg-background">
+      <div className="border-b border-border px-4 py-3">
+        <SectionHeader title="Community Chat" badge={<span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-[color:var(--success)]" />} />
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
         {messages.length === 0 && (
           <div className="text-center text-xs text-muted-foreground">No messages yet. Be the first!</div>
         )}
@@ -89,25 +91,27 @@ function Chat() {
         })}
       </div>
 
-      {user ? (
-        <form className="mt-3 flex gap-2" onSubmit={handleSend}>
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Type a message…"
-            maxLength={500}
-            className="flex-1 rounded-full border border-border bg-card px-4 py-2.5 text-sm placeholder:text-muted-foreground"
-          />
-          <button disabled={busy || !text.trim()} className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
-            <Send className="h-4 w-4" />
-          </button>
-        </form>
-      ) : (
-        <Link to="/signin" className="mt-3 block rounded-full border border-border bg-card px-4 py-2.5 text-center text-sm font-semibold hover:bg-muted">
-          Sign in to chat
-        </Link>
-      )}
+      <div className="border-t border-border bg-background px-4 py-3">
+        {user ? (
+          <form className="flex gap-2" onSubmit={handleSend}>
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Type a message…"
+              maxLength={500}
+              className="flex-1 rounded-full border border-border bg-card px-4 py-2.5 text-sm placeholder:text-muted-foreground"
+            />
+            <button disabled={busy || !text.trim()} className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+              <Send className="h-4 w-4" />
+            </button>
+          </form>
+        ) : (
+          <Link to="/signin" className="block rounded-full border border-border bg-card px-4 py-2.5 text-center text-sm font-semibold hover:bg-muted">
+            Sign in to chat
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
