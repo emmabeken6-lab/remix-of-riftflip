@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { playCoinflip } from "@/server/wallet.functions";
+import { playCoinflip } from "@/functions/wallet.functions";
 
 export const Route = createFileRoute("/game/$gameId")({ component: Game });
 

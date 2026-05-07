@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { getMe, signOut as signOutFn } from "@/server/auth.functions";
+import { getMe, signOut as signOutFn } from "@/functions/auth.functions";
 
 export type Me = {
   id: string;

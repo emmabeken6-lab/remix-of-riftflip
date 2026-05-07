@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireUser } from "./auth.server";
+import { requireUser } from "@/server/auth.server";
 
 export const getWallet = createServerFn({ method: "GET" }).handler(async () => {
   const user = await requireUser();

@@ -9,7 +9,7 @@ import {
   adminListEvents, adminCreateEvent, adminEndEvent,
   adminListGiveaways, adminCreateGiveaway, adminDrawGiveaway,
   adminCreateWordCrumble, adminListWordCrumbles, adminAuditLog,
-} from "@/server/admin.functions";
+} from "@/functions/admin.functions";
 
 export const Route = createFileRoute("/admin")({
   component: Admin,

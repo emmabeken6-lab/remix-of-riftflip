@@ -7,8 +7,8 @@ import {
   destroySession,
   getCurrentUser,
   isAdmin,
-} from "./auth.server";
-import { getAvatarUrl, getProfile, lookupUsername, newVerificationCode } from "./roblox.server";
+} from "@/server/auth.server";
+import { getAvatarUrl, getProfile, lookupUsername, newVerificationCode } from "@/server/roblox.server";
 
 export const lookupRobloxUser = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ username: z.string().trim().min(3).max(20) }).parse(d))
