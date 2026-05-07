@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireUser } from "./auth.server";
 
@@ -33,7 +34,6 @@ export const submitWordCrumbleAnswer = createServerFn({ method: "POST" })
     if (round.answer.toLowerCase() !== data.answer.toLowerCase()) {
       return { correct: false };
     }
-    // Atomically mark the round as won (only one winner)
     const { data: claimed } = await supabaseAdmin
       .from("word_crumbles")
       .update({ status: "won", winner_id: user.id, resolved_at: new Date().toISOString() })
@@ -57,4 +57,71 @@ export const submitWordCrumbleAnswer = createServerFn({ method: "POST" })
     });
 
     return { correct: true, prize: Number(claimed.prize_tokens) };
+  });
+
+export const playCoinflip = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      side: z.enum(["heads", "tails"]),
+      wager: z.number().positive().max(100000),
+    }).parse(d)
+  )
+  .handler(async ({ data }) => {
+    const user = await requireUser();
+
+    // Create game + bet records
+    const { data: game, error: gErr } = await supabaseAdmin
+      .from("games")
+      .insert({ game_type: "coinflip", wager: data.wager, creator_id: user.id, status: "open" })
+      .select("id")
+      .single();
+    if (gErr || !game) throw new Error("Could not start game");
+
+    // Debit wager
+    const { error: debitErr } = await supabaseAdmin.rpc("apply_transaction", {
+      _user_id: user.id,
+      _delta: -data.wager,
+      _reason: "bet_placed",
+      _ref_id: game.id,
+      _meta: { game: "coinflip", side: data.side },
+    });
+    if (debitErr) {
+      await supabaseAdmin.from("games").update({ status: "cancelled" }).eq("id", game.id);
+      throw new Error(debitErr.message.includes("INSUFFICIENT_FUNDS") ? "Not enough tokens" : debitErr.message);
+    }
+
+    await supabaseAdmin.from("game_bets").insert({
+      game_id: game.id, user_id: user.id, amount: data.wager, side: data.side,
+    });
+
+    // Resolve
+    const result = Math.random() < 0.5 ? "heads" : "tails";
+    const won = result === data.side;
+    const payout = won ? data.wager * 2 : 0;
+
+    if (won) {
+      await supabaseAdmin.rpc("apply_transaction", {
+        _user_id: user.id,
+        _delta: payout,
+        _reason: "bet_won",
+        _ref_id: game.id,
+        _meta: { game: "coinflip", result },
+      });
+    }
+
+    await supabaseAdmin.from("games").update({
+      status: "resolved",
+      result: { result, won, payout } as never,
+      resolved_at: new Date().toISOString(),
+    }).eq("id", game.id);
+
+    const { data: refreshed } = await supabaseAdmin
+      .from("users").select("balance_tokens").eq("id", user.id).single();
+
+    return {
+      result,
+      won,
+      payout,
+      balance: Number(refreshed?.balance_tokens ?? 0),
+    };
   });

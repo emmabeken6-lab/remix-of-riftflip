@@ -63,9 +63,11 @@ function Chat() {
   const messages = data?.messages ?? [];
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] flex-col">
-      <SectionHeader title="Community Chat" badge={<span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-[color:var(--success)]" />} />
-      <div ref={scrollRef} className="flex-1 overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+    <div className="fixed inset-x-0 top-[57px] bottom-[60px] z-20 flex flex-col bg-background">
+      <div className="border-b border-border px-4 py-3">
+        <SectionHeader title="Community Chat" badge={<span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-[color:var(--success)]" />} />
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
         {messages.length === 0 && (
           <div className="text-center text-xs text-muted-foreground">No messages yet. Be the first!</div>
         )}
