@@ -110,7 +110,7 @@ function CoinflipArena() {
         won: youWon, payout: r.payout, wager: lobby.wager,
         creatorSide: r.creatorSide as "heads" | "tails", joinerSide: r.joinerSide as "heads" | "tails",
         creator: lobby.creator,
-        joiner: { display_name: user.display_name, avatar_url: user.avatar_url },
+        joiner: { display_name: user.displayName, avatar_url: user.avatarUrl },
         serverSeed: r.serverSeed, serverSeedHash: r.serverSeedHash,
       });
       void meIsCreator;
@@ -134,7 +134,7 @@ function CoinflipArena() {
   useEffect(() => {
     if (!user || !lobbies) return;
     for (const l of lobbies) {
-      if (l.status === "resolved" && l.creator?.display_name === user.display_name && !seenRef.current.has(l.id) && l.result?.result) {
+      if (l.status === "resolved" && l.creator?.display_name === user.displayName && !seenRef.current.has(l.id) && l.result?.result) {
         seenRef.current.add(l.id);
         if (active?.gameId === l.id) continue;
         // Fetch full game to get seeds
