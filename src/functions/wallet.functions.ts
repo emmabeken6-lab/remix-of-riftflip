@@ -274,7 +274,14 @@ async function resolveJackpotRound(roundId: string) {
   if (new Date(round.ends_at) > new Date()) return { resolved: false, reason: "not_ended" };
   const { data: entries } = await supabaseAdmin
     .from("jackpot_entries").select("user_id, amount").eq("round_id", round.id);
-  if (!entries || entries.length === 0) {
+  if (!entries || entries.length < 2) {
+    // Refund the sole entrant if any (need at least 2 players)
+    if (entries && entries.length === 1) {
+      await supabaseAdmin.rpc("apply_transaction", {
+        _user_id: entries[0].user_id, _delta: Number(entries[0].amount), _reason: "bet_refund",
+        _ref_id: round.id, _meta: { game: "jackpot", note: "not_enough_players" },
+      });
+    }
     await supabaseAdmin.from("jackpot_rounds").update({ status: "ended", resolved_at: new Date().toISOString() }).eq("id", round.id);
     return { resolved: true, winner: null };
   }
