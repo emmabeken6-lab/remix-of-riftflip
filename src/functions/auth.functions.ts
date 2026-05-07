@@ -7,6 +7,7 @@ import {
   destroySession,
   getCurrentUser,
   isAdmin,
+  logLogin,
 } from "@/server/auth.server";
 import { getAvatarUrl, getProfile, lookupUsername, newVerificationCode } from "@/server/roblox.server";
 
@@ -59,6 +60,7 @@ export const verifyAndSignIn = createServerFn({ method: "POST" })
     if (!profile) throw new Error("Roblox user not found");
 
     if (!profile.description.includes(challenge.code)) {
+      await logLogin({ username: profile.username, success: false, reason: "code_not_in_bio" });
       throw new Error(`Code "${challenge.code}" not found in your Roblox bio. Save your bio and try again.`);
     }
 
@@ -107,6 +109,7 @@ export const verifyAndSignIn = createServerFn({ method: "POST" })
     await supabaseAdmin.from("verification_challenges").update({ consumed: true }).eq("id", challenge.id);
 
     await createSession(userId);
+    await logLogin({ userId, username: profile.username, success: true, reason: "bio_verified" });
     return { success: true, userId };
   });
 
