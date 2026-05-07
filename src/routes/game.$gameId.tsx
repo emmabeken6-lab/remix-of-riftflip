@@ -528,7 +528,7 @@ function JackpotArena() {
               {s.avatar && <img src={s.avatar} alt="" className="h-7 w-7 rounded-full" />}
               <div className="flex-1 min-w-0 truncate">{s.name}</div>
               <div className="font-bold">{s.amount}</div>
-              <div className="w-12 text-right text-xs text-muted-foreground">{s.pct.toFixed(1)}%</div>
+              <div className="w-12 text-right text-xs text-muted-foreground">{(total > 0 ? (s.amount / total) * 100 : 0).toFixed(1)}%</div>
             </li>
           ))}
         </ul>
