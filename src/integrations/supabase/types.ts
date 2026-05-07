@@ -155,32 +155,44 @@ export type Database = {
       }
       games: {
         Row: {
+          client_seed: string | null
           created_at: string
           creator_id: string
           game_type: string
           id: string
+          nonce: number | null
           resolved_at: string | null
           result: Json | null
+          server_seed: string | null
+          server_seed_hash: string | null
           status: Database["public"]["Enums"]["game_status"]
           wager: number
         }
         Insert: {
+          client_seed?: string | null
           created_at?: string
           creator_id: string
           game_type: string
           id?: string
+          nonce?: number | null
           resolved_at?: string | null
           result?: Json | null
+          server_seed?: string | null
+          server_seed_hash?: string | null
           status?: Database["public"]["Enums"]["game_status"]
           wager: number
         }
         Update: {
+          client_seed?: string | null
           created_at?: string
           creator_id?: string
           game_type?: string
           id?: string
+          nonce?: number | null
           resolved_at?: string | null
           result?: Json | null
+          server_seed?: string | null
+          server_seed_hash?: string | null
           status?: Database["public"]["Enums"]["game_status"]
           wager?: number
         }
@@ -268,26 +280,207 @@ export type Database = {
           },
         ]
       }
+      jackpot_entries: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          round_id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          round_id: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          round_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jackpot_entries_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "jackpot_rounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jackpot_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jackpot_rounds: {
+        Row: {
+          created_at: string
+          ends_at: string
+          id: string
+          resolved_at: string | null
+          server_seed: string
+          server_seed_hash: string
+          status: string
+          total_tokens: number
+          winner_id: string | null
+          winning_ticket: number | null
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          id?: string
+          resolved_at?: string | null
+          server_seed: string
+          server_seed_hash: string
+          status?: string
+          total_tokens?: number
+          winner_id?: string | null
+          winning_ticket?: number | null
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          id?: string
+          resolved_at?: string | null
+          server_seed?: string
+          server_seed_hash?: string
+          status?: string
+          total_tokens?: number
+          winner_id?: string | null
+          winning_ticket?: number | null
+        }
+        Relationships: []
+      }
+      login_logs: {
+        Row: {
+          created_at: string
+          id: string
+          ip: string | null
+          reason: string | null
+          roblox_username: string | null
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip?: string | null
+          reason?: string | null
+          roblox_username?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip?: string | null
+          reason?: string | null
+          roblox_username?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "login_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mines_games: {
+        Row: {
+          client_seed: string | null
+          created_at: string
+          id: string
+          mine_positions: number[]
+          mines_count: number
+          payout: number | null
+          resolved_at: string | null
+          revealed: number[]
+          server_seed: string
+          server_seed_hash: string
+          status: string
+          user_id: string
+          wager: number
+        }
+        Insert: {
+          client_seed?: string | null
+          created_at?: string
+          id?: string
+          mine_positions: number[]
+          mines_count: number
+          payout?: number | null
+          resolved_at?: string | null
+          revealed?: number[]
+          server_seed: string
+          server_seed_hash: string
+          status?: string
+          user_id: string
+          wager: number
+        }
+        Update: {
+          client_seed?: string | null
+          created_at?: string
+          id?: string
+          mine_positions?: number[]
+          mines_count?: number
+          payout?: number | null
+          resolved_at?: string | null
+          revealed?: number[]
+          server_seed?: string
+          server_seed_hash?: string
+          status?: string
+          user_id?: string
+          wager?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mines_games_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sessions: {
         Row: {
           created_at: string
           expires_at: string
           id: string
+          ip: string | null
           token_hash: string
+          user_agent: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           expires_at: string
           id?: string
+          ip?: string | null
           token_hash: string
+          user_agent?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           expires_at?: string
           id?: string
+          ip?: string | null
           token_hash?: string
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: [

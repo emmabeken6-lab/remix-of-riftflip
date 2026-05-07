@@ -9,6 +9,7 @@ import {
   adminListEvents, adminCreateEvent, adminEndEvent,
   adminListGiveaways, adminCreateGiveaway, adminDrawGiveaway,
   adminCreateWordCrumble, adminListWordCrumbles, adminAuditLog,
+  adminLoginLogs, adminListAlts,
 } from "@/functions/admin.functions";
 
 export const Route = createFileRoute("/admin")({
@@ -25,14 +26,18 @@ function Admin() {
     <div>
       <h1 className="mb-4 text-2xl font-extrabold">Admin Panel</h1>
       <Tabs defaultValue="users">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="flex w-full flex-wrap">
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="logins">Logins</TabsTrigger>
+          <TabsTrigger value="alts">Alts</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
           <TabsTrigger value="giveaways">Giveaways</TabsTrigger>
           <TabsTrigger value="words">Word Crumbles</TabsTrigger>
           <TabsTrigger value="audit">Audit</TabsTrigger>
         </TabsList>
         <TabsContent value="users"><UsersTab /></TabsContent>
+        <TabsContent value="logins"><LoginsTab /></TabsContent>
+        <TabsContent value="alts"><AltsTab /></TabsContent>
         <TabsContent value="events"><EventsTab /></TabsContent>
         <TabsContent value="giveaways"><GiveawaysTab /></TabsContent>
         <TabsContent value="words"><WordCrumblesTab /></TabsContent>
@@ -217,6 +222,56 @@ function AuditTab() {
             <div className="font-semibold">{e.action} <span className="text-muted-foreground">by @{e.admin?.roblox_username ?? "system"}</span></div>
             <div className="text-muted-foreground">{new Date(e.created_at).toLocaleString()}</div>
             <pre className="mt-1 overflow-x-auto rounded bg-background p-2">{JSON.stringify(e.payload, null, 2)}</pre>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function LoginsTab() {
+  const { data } = useQuery({ queryKey: ["admin-logins"], queryFn: () => adminLoginLogs(), refetchInterval: 5000 });
+  return (
+    <Card>
+      <ul className="divide-y divide-border text-xs">
+        {(data?.logs ?? []).map((l: { id: string; roblox_username: string; ip: string | null; user_agent: string | null; success: boolean; reason: string | null; created_at: string }) => (
+          <li key={l.id} className="py-2">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${l.success ? "bg-[color:var(--success)]" : "bg-destructive"}`} />
+              <span className="font-semibold">@{l.roblox_username}</span>
+              <span className="text-muted-foreground">{l.ip ?? "—"}</span>
+              <span className="ml-auto text-muted-foreground">{new Date(l.created_at).toLocaleString()}</span>
+            </div>
+            <div className="text-muted-foreground">{l.reason ?? ""} · {l.user_agent ?? ""}</div>
+          </li>
+        ))}
+        {(data?.logs ?? []).length === 0 && <li className="py-6 text-center text-muted-foreground">No logins recorded yet.</li>}
+      </ul>
+    </Card>
+  );
+}
+
+function AltsTab() {
+  const { data } = useQuery({ queryKey: ["admin-alts"], queryFn: () => adminListAlts(), refetchInterval: 10000 });
+  return (
+    <Card>
+      <p className="mb-3 text-xs text-muted-foreground">Accounts that have shared an IP address — possible alt accounts.</p>
+      {(data?.groups ?? []).length === 0 && <div className="py-6 text-center text-xs text-muted-foreground">No alt groups detected.</div>}
+      <ul className="space-y-3">
+        {(data?.groups ?? []).map((g: { ip: string; users: Array<{ id: string; roblox_username: string; display_name: string; avatar_url: string | null; banned: boolean; balance_tokens: number } | undefined> }) => (
+          <li key={g.ip} className="rounded-xl border border-border bg-background p-3">
+            <div className="mb-2 text-xs font-semibold">IP: <span className="text-primary">{g.ip}</span> · {g.users.filter(Boolean).length} accounts</div>
+            <ul className="divide-y divide-border">
+              {g.users.filter(Boolean).map((u) => u && (
+                <li key={u.id} className="flex items-center gap-3 py-2 text-sm">
+                  {u.avatar_url && <img src={u.avatar_url} alt="" className="h-7 w-7 rounded-full" />}
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate font-semibold">{u.display_name} <span className="text-muted-foreground">@{u.roblox_username}</span></div>
+                    <div className="text-xs text-muted-foreground">{Number(u.balance_tokens).toFixed(2)} tokens {u.banned && <span className="ml-1 rounded bg-destructive/20 px-1.5 py-0.5 text-destructive">banned</span>}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </li>
         ))}
       </ul>

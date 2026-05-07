@@ -8,9 +8,9 @@ export const Route = createFileRoute("/games")({
 });
 
 const games = [
-  { to: "/game/coinflip", label: "Coinflip", desc: "50/50 — double or nothing", icon: Coins, gradient: "from-amber-500/30 to-orange-600/30" },
-  { to: "/game/jackpot", label: "Jackpot", desc: "Pool your bets, biggest wins", icon: CircleDollarSign, gradient: "from-emerald-500/30 to-teal-600/30" },
-  { to: "/game/minefield", label: "Minefield", desc: "Avoid the mines, cash out big", icon: Bomb, gradient: "from-rose-500/30 to-red-600/30" },
+  { to: "/game/coinflip", label: "Coinflip", desc: "50/50 — provably fair, double or nothing", icon: Coins, gradient: "from-amber-500/30 to-orange-600/30" },
+  { to: "/game/jackpot",  label: "Jackpot",  desc: "Pool your bets, weighted random winner", icon: CircleDollarSign, gradient: "from-emerald-500/30 to-teal-600/30" },
+  { to: "/game/mines",    label: "Mines",    desc: "Reveal gems, avoid mines, cash out big", icon: Bomb, gradient: "from-rose-500/30 to-red-600/30" },
 ] as const;
 
 function Games() {
