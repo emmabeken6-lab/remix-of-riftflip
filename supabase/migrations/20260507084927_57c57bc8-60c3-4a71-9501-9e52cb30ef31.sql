@@ -1,0 +1,1 @@
+ALTER TABLE public.jackpot_rounds ALTER COLUMN ends_at DROP NOT NULL;

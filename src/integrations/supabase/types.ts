@@ -331,7 +331,7 @@ export type Database = {
       jackpot_rounds: {
         Row: {
           created_at: string
-          ends_at: string
+          ends_at: string | null
           id: string
           resolved_at: string | null
           server_seed: string
@@ -343,7 +343,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          ends_at: string
+          ends_at?: string | null
           id?: string
           resolved_at?: string | null
           server_seed: string
@@ -355,7 +355,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          ends_at?: string
+          ends_at?: string | null
           id?: string
           resolved_at?: string | null
           server_seed?: string
