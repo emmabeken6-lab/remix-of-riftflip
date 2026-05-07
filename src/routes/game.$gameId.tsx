@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { ArrowLeft, Coins, CircleDollarSign, Bomb, Loader2, ShieldCheck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Coins, CircleDollarSign, Bomb, Loader2, ShieldCheck, Plus, X, Users } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  playCoinflip,
+  listCoinflipLobbies, createCoinflip, joinCoinflip, cancelCoinflip, getCoinflipGame,
   enterJackpot, getJackpot, resolveJackpot,
   startMines, revealMines, cashoutMines, getActiveMines,
 } from "@/functions/wallet.functions";
