@@ -81,11 +81,20 @@ function Chat() {
             );
           }
           return (
-            <div key={m.id} className="mb-3 last:mb-0">
-              <div className={`text-xs font-semibold uppercase tracking-wide ${isSystem ? "text-[color:var(--warning)]" : "text-primary"}`}>
-                {isSystem ? "system" : (u?.display_name ?? "user")}
+            <div key={m.id} className="mb-3 flex gap-2.5 last:mb-0">
+              {isSystem ? (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--warning)]/15 text-xs font-bold text-[color:var(--warning)]">!</div>
+              ) : u?.avatar_url ? (
+                <img src={u.avatar_url} alt="" className="h-8 w-8 shrink-0 rounded-full ring-1 ring-border" />
+              ) : (
+                <div className="h-8 w-8 shrink-0 rounded-full bg-muted ring-1 ring-border" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className={`text-xs font-semibold ${isSystem ? "text-[color:var(--warning)]" : "text-primary"}`}>
+                  {isSystem ? "system" : (u?.display_name ?? "user")}
+                </div>
+                <div className="break-words text-sm text-foreground/90">{m.body}</div>
               </div>
-              <div className="text-sm text-foreground/90">{m.body}</div>
             </div>
           );
         })}

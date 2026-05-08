@@ -1,21 +1,33 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Sparkles, Trophy, Coins, Bomb, CircleDollarSign, Gift, Wallet, Radio } from "lucide-react";
+import { Sparkles, Trophy, Gift, Wallet, Radio } from "lucide-react";
 import banner from "@/assets/banner.png";
 import SectionHeader from "@/components/SectionHeader";
 import Typewriter from "@/components/Typewriter";
+import { useQuery } from "@tanstack/react-query";
+import { getLiveWins } from "@/functions/wallet.functions";
+import { useEffect, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({ component: Home });
 
-const games = [
-  { to: "/game/coinflip", label: "Coinflip", icon: Coins, gradient: "from-amber-500/30 to-orange-600/30" },
-  { to: "/game/jackpot", label: "Jackpot", icon: CircleDollarSign, gradient: "from-emerald-500/30 to-teal-600/30" },
-  { to: "/game/minefield", label: "Minefield", icon: Bomb, gradient: "from-rose-500/30 to-red-600/30" },
-] as const;
-
 function Home() {
+  const { data, refetch } = useQuery({
+    queryKey: ["live-wins"], queryFn: () => getLiveWins(), refetchInterval: 5000,
+  });
+  const seenRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("live-wins")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "transactions" }, () => refetch())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [refetch]);
+
+  const wins = data?.wins ?? [];
+
   return (
     <div>
-      {/* Hero banner */}
       <section className="relative overflow-hidden rounded-2xl border border-border shadow-[var(--shadow-card)]">
         <img src={banner} alt="Riftflip casino banner" className="h-44 w-full object-cover sm:h-64" />
         <div className="absolute inset-0 bg-gradient-to-r from-background/85 via-background/40 to-transparent" />
@@ -35,7 +47,6 @@ function Home() {
         </div>
       </section>
 
-      {/* Current Event */}
       <SectionHeader title="Current Event" linkTo="/rewards" linkLabel="View all winners" />
       <div className="rounded-2xl border border-border bg-card p-6 text-center shadow-[var(--shadow-card)]">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
@@ -49,10 +60,8 @@ function Home() {
         </Link>
       </div>
 
-      {/* Live Wins */}
       <SectionHeader
         title="Live Wins"
-        linkTo="/games"
         badge={<span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-[color:var(--success)]" />}
       />
       <div className="rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">
@@ -63,34 +72,38 @@ function Home() {
           </div>
           <span className="text-xs text-muted-foreground">Real-time</span>
         </div>
-        <div className="px-4 py-10 text-center">
-          <div className="text-sm font-medium text-muted-foreground">No wins recorded yet</div>
-          <div className="mt-1 text-xs text-muted-foreground/80">Be the first to win!</div>
-        </div>
+        {wins.length === 0 ? (
+          <div className="px-4 py-10 text-center">
+            <div className="text-sm font-medium text-muted-foreground">No wins recorded yet</div>
+            <div className="mt-1 text-xs text-muted-foreground/80">Be the first to win!</div>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {wins.map((w) => {
+              const fresh = !seenRef.current.has(w.id);
+              if (fresh) seenRef.current.add(w.id);
+              return (
+                <li key={w.id} className={`flex items-center gap-3 px-4 py-2.5 ${fresh ? "animate-fade-in" : ""}`}>
+                  {w.user?.avatar_url ? (
+                    <img src={w.user.avatar_url} alt="" className="h-8 w-8 rounded-full ring-1 ring-border" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-muted" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{w.user?.display_name ?? "Anon"}</div>
+                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{w.game}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-extrabold text-[color:var(--success)]">+{w.amount.toFixed(0)}</div>
+                    <div className="text-[10px] text-muted-foreground">tokens</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
-      {/* Games */}
-      <SectionHeader title="Games" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {games.map(({ to, label, icon: Icon, gradient }) => (
-          <Link
-            key={to}
-            to={to}
-            className={`group relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-primary/50`}
-          >
-            <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br opacity-60 ${gradient}`} />
-            <div className="relative flex flex-col items-start gap-3">
-              <div className="rounded-xl bg-background/60 p-2.5 ring-1 ring-border backdrop-blur">
-                <Icon className="h-6 w-6 text-primary" />
-              </div>
-              <div className="text-base font-bold">{label}</div>
-              <div className="text-xs text-muted-foreground">Tap to play</div>
-            </div>
-          </Link>
-        ))}
-      </div>
-
-      {/* Quick actions */}
       <div className="mt-4 grid grid-cols-2 gap-3">
         <Link to="/rewards" className="rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] hover:border-primary/50">
           <div className="flex items-center gap-3">

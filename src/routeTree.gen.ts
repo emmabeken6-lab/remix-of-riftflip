@@ -17,6 +17,7 @@ import { Route as ChatRouteImport } from './routes/chat'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GameGameIdRouteImport } from './routes/game.$gameId'
+import { Route as ApiPublicNowpaymentsIpnRouteImport } from './routes/api/public/nowpayments-ipn'
 
 const WalletRoute = WalletRouteImport.update({
   id: '/wallet',
@@ -58,6 +59,11 @@ const GameGameIdRoute = GameGameIdRouteImport.update({
   path: '/game/$gameId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicNowpaymentsIpnRoute = ApiPublicNowpaymentsIpnRouteImport.update({
+  id: '/api/public/nowpayments-ipn',
+  path: '/api/public/nowpayments-ipn',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/signin': typeof SigninRoute
   '/wallet': typeof WalletRoute
   '/game/$gameId': typeof GameGameIdRoute
+  '/api/public/nowpayments-ipn': typeof ApiPublicNowpaymentsIpnRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/signin': typeof SigninRoute
   '/wallet': typeof WalletRoute
   '/game/$gameId': typeof GameGameIdRoute
+  '/api/public/nowpayments-ipn': typeof ApiPublicNowpaymentsIpnRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/signin': typeof SigninRoute
   '/wallet': typeof WalletRoute
   '/game/$gameId': typeof GameGameIdRoute
+  '/api/public/nowpayments-ipn': typeof ApiPublicNowpaymentsIpnRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/wallet'
     | '/game/$gameId'
+    | '/api/public/nowpayments-ipn'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/wallet'
     | '/game/$gameId'
+    | '/api/public/nowpayments-ipn'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/wallet'
     | '/game/$gameId'
+    | '/api/public/nowpayments-ipn'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +144,7 @@ export interface RootRouteChildren {
   SigninRoute: typeof SigninRoute
   WalletRoute: typeof WalletRoute
   GameGameIdRoute: typeof GameGameIdRoute
+  ApiPublicNowpaymentsIpnRoute: typeof ApiPublicNowpaymentsIpnRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameGameIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/nowpayments-ipn': {
+      id: '/api/public/nowpayments-ipn'
+      path: '/api/public/nowpayments-ipn'
+      fullPath: '/api/public/nowpayments-ipn'
+      preLoaderRoute: typeof ApiPublicNowpaymentsIpnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   SigninRoute: SigninRoute,
   WalletRoute: WalletRoute,
   GameGameIdRoute: GameGameIdRoute,
+  ApiPublicNowpaymentsIpnRoute: ApiPublicNowpaymentsIpnRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
