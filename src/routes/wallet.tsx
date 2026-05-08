@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, Loader2, X } from "lucide-react";
 import SectionHeader from "@/components/SectionHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { RobloxLogin } from "@/components/RobloxLogin";
 import { useQuery } from "@tanstack/react-query";
-import { getWallet } from "@/functions/wallet.functions";
+import { getWallet, createCryptoDeposit } from "@/functions/wallet.functions";
+import { useState } from "react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/wallet")({
   component: Wallet,
