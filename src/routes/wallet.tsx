@@ -59,9 +59,7 @@ function WalletInner() {
           {balance.toFixed(2)} <span className="text-base font-semibold text-muted-foreground">tokens</span>
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
-          <button disabled className="inline-flex items-center gap-2 rounded-full bg-primary/60 px-5 py-2.5 text-sm font-semibold text-primary-foreground opacity-70">
-            <ArrowDownToLine className="h-4 w-4" /> Deposit (coming soon)
-          </button>
+          <DepositButton />
           <button disabled className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-5 py-2.5 text-sm font-semibold backdrop-blur opacity-70">
             <ArrowUpFromLine className="h-4 w-4" /> Withdraw (coming soon)
           </button>
