@@ -40,10 +40,6 @@ export const submitWordCrumbleAnswer = createServerFn({ method: "POST" })
       _user_id: user.id, _delta: claimed.prize_tokens,
       _reason: "word_crumble_win", _ref_id: claimed.id, _meta: { answer: round.answer },
     });
-    await supabaseAdmin.from("chat_messages").insert({
-      kind: "system",
-      body: `${user.display_name} solved the word crumble "${round.answer}" and won ${claimed.prize_tokens} tokens!`,
-    });
     return { correct: true, prize: Number(claimed.prize_tokens) };
   });
 
