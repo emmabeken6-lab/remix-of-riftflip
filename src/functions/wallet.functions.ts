@@ -442,3 +442,194 @@ export const getActiveMines = createServerFn({ method: "GET" }).handler(async ()
     },
   };
 });
+
+// ───────── LIVE WINS / REWARDS / GIVEAWAYS / DEPOSITS ─────────
+export const getLiveWins = createServerFn({ method: "GET" }).handler(async () => {
+  const { data } = await supabaseAdmin
+    .from("transactions")
+    .select("id, delta, reason, meta, created_at, user_id")
+    .eq("reason", "bet_won")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const ids = Array.from(new Set((data ?? []).map((t) => t.user_id)));
+  const { data: users } = ids.length
+    ? await supabaseAdmin.from("users").select("id, display_name, avatar_url").in("id", ids)
+    : { data: [] as { id: string; display_name: string; avatar_url: string | null }[] };
+  const byId = new Map((users ?? []).map((u) => [u.id, u]));
+  return {
+    wins: (data ?? []).map((t) => {
+      const meta = (t.meta ?? {}) as { game?: string; multiplier?: number };
+      return {
+        id: t.id, amount: Number(t.delta), createdAt: t.created_at,
+        game: meta.game ?? "game",
+        user: byId.get(t.user_id) ?? null,
+      };
+    }),
+  };
+});
+
+// Daily reward: 2 tokens/day, 7-day streak; missing a day resets.
+export const getDailyRewardStatus = createServerFn({ method: "GET" }).handler(async () => {
+  const user = await requireUser();
+  const { data: claims } = await supabaseAdmin
+    .from("daily_claims")
+    .select("claimed_on, streak_day, amount")
+    .eq("user_id", user.id)
+    .order("claimed_on", { ascending: false })
+    .limit(7);
+  const today = new Date().toISOString().slice(0, 10);
+  const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const claimedToday = (claims ?? []).some((c) => c.claimed_on === today);
+  const last = claims?.[0];
+  let nextStreak = 1;
+  if (last) {
+    if (last.claimed_on === today) nextStreak = last.streak_day;
+    else if (last.claimed_on === yest) nextStreak = (last.streak_day % 7) + 1;
+  }
+  return { claimedToday, nextStreak, amount: 2, recent: claims ?? [] };
+});
+
+export const claimDailyReward = createServerFn({ method: "POST" }).handler(async () => {
+  const user = await requireUser();
+  const today = new Date().toISOString().slice(0, 10);
+  const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const { data: existing } = await supabaseAdmin
+    .from("daily_claims").select("id").eq("user_id", user.id).eq("claimed_on", today).maybeSingle();
+  if (existing) throw new Error("Already claimed today");
+  const { data: last } = await supabaseAdmin
+    .from("daily_claims").select("claimed_on, streak_day").eq("user_id", user.id)
+    .order("claimed_on", { ascending: false }).limit(1).maybeSingle();
+  let day = 1;
+  if (last && last.claimed_on === yest) day = (last.streak_day % 7) + 1;
+  const amount = 2;
+  const { error: insErr } = await supabaseAdmin.from("daily_claims")
+    .insert({ user_id: user.id, claimed_on: today, streak_day: day, amount });
+  if (insErr) throw new Error(insErr.message);
+  await supabaseAdmin.rpc("apply_transaction", {
+    _user_id: user.id, _delta: amount, _reason: "daily_reward",
+    _meta: { day, date: today },
+  });
+  return { day, amount };
+});
+
+// Wager rewards: 500 tokens for every 50,000 wagered (cumulative).
+const WAGER_STEP = 50000;
+const WAGER_BONUS = 500;
+
+export const getWagerProgress = createServerFn({ method: "GET" }).handler(async () => {
+  const user = await requireUser();
+  const { data: bets } = await supabaseAdmin
+    .from("transactions").select("delta").eq("user_id", user.id).eq("reason", "bet_placed");
+  const wagered = (bets ?? []).reduce((s, t) => s + Math.abs(Number(t.delta)), 0);
+  const milestonesEarned = Math.floor(wagered / WAGER_STEP);
+  const { data: claimed } = await supabaseAdmin
+    .from("wager_rewards").select("milestone, amount").eq("user_id", user.id);
+  const claimedSet = new Set((claimed ?? []).map((r) => Number(r.milestone)));
+  const unclaimed: number[] = [];
+  for (let i = 1; i <= milestonesEarned; i++) {
+    const m = i * WAGER_STEP;
+    if (!claimedSet.has(m)) unclaimed.push(m);
+  }
+  return {
+    wagered, step: WAGER_STEP, bonus: WAGER_BONUS,
+    nextAt: (milestonesEarned + 1) * WAGER_STEP,
+    unclaimed, totalClaimed: (claimed ?? []).reduce((s, r) => s + Number(r.amount), 0),
+  };
+});
+
+export const claimWagerReward = createServerFn({ method: "POST" }).handler(async () => {
+  const user = await requireUser();
+  const { data: bets } = await supabaseAdmin
+    .from("transactions").select("delta").eq("user_id", user.id).eq("reason", "bet_placed");
+  const wagered = (bets ?? []).reduce((s, t) => s + Math.abs(Number(t.delta)), 0);
+  const milestonesEarned = Math.floor(wagered / WAGER_STEP);
+  const { data: claimed } = await supabaseAdmin
+    .from("wager_rewards").select("milestone").eq("user_id", user.id);
+  const claimedSet = new Set((claimed ?? []).map((r) => Number(r.milestone)));
+  let granted = 0;
+  for (let i = 1; i <= milestonesEarned; i++) {
+    const m = i * WAGER_STEP;
+    if (claimedSet.has(m)) continue;
+    const { error: e1 } = await supabaseAdmin.from("wager_rewards")
+      .insert({ user_id: user.id, milestone: m, amount: WAGER_BONUS });
+    if (e1) continue;
+    await supabaseAdmin.rpc("apply_transaction", {
+      _user_id: user.id, _delta: WAGER_BONUS, _reason: "wager_reward",
+      _meta: { milestone: m },
+    });
+    granted += WAGER_BONUS;
+  }
+  if (granted === 0) throw new Error("Nothing to claim yet");
+  return { granted };
+});
+
+// Giveaways
+export const listGiveaways = createServerFn({ method: "GET" }).handler(async () => {
+  const { data: gws } = await supabaseAdmin
+    .from("giveaways")
+    .select("id, title, prize_tokens, ends_at, status, winner_id, created_at")
+    .order("created_at", { ascending: false }).limit(20);
+  const ids = (gws ?? []).map((g) => g.id);
+  const { data: entries } = ids.length
+    ? await supabaseAdmin.from("giveaway_entries").select("giveaway_id, user_id").in("giveaway_id", ids)
+    : { data: [] as { giveaway_id: string; user_id: string }[] };
+  const counts: Record<string, number> = {};
+  for (const e of entries ?? []) counts[e.giveaway_id] = (counts[e.giveaway_id] ?? 0) + 1;
+  return { giveaways: (gws ?? []).map((g) => ({ ...g, entries: counts[g.id] ?? 0 })) };
+});
+
+export const enterGiveaway = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ giveawayId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const user = await requireUser();
+    const { data: gw } = await supabaseAdmin
+      .from("giveaways").select("status, ends_at").eq("id", data.giveawayId).maybeSingle();
+    if (!gw || gw.status !== "active") throw new Error("Giveaway not active");
+    if (new Date(gw.ends_at) < new Date()) throw new Error("Giveaway ended");
+    const { data: existing } = await supabaseAdmin
+      .from("giveaway_entries").select("id")
+      .eq("giveaway_id", data.giveawayId).eq("user_id", user.id).maybeSingle();
+    if (existing) throw new Error("Already entered");
+    const { error } = await supabaseAdmin.from("giveaway_entries")
+      .insert({ giveaway_id: data.giveawayId, user_id: user.id });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// NOWPayments crypto deposit
+const TOKENS_PER_USD = 100;
+export const createCryptoDeposit = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    usd: z.number().positive().min(1).max(10000),
+    payCurrency: z.string().trim().min(2).max(10).optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const user = await requireUser();
+    const apiKey = process.env.NOWPAYMENTS_API_KEY;
+    if (!apiKey) throw new Error("Deposits not configured");
+    const orderId = `rf_${user.id}_${Date.now()}`;
+    const body = {
+      price_amount: data.usd,
+      price_currency: "usd",
+      pay_currency: data.payCurrency,
+      order_id: orderId,
+      order_description: `Riftflip ${data.usd * TOKENS_PER_USD} tokens`,
+      ipn_callback_url: `${process.env.SUPABASE_URL?.replace(/\/+$/,"") ?? ""}/api/public/nowpayments-ipn`,
+    };
+    const res = await fetch("https://api.nowpayments.io/v1/invoice", {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`NOWPayments error: ${t.slice(0, 160)}`);
+    }
+    const inv = await res.json() as { id: string; invoice_url: string };
+    await supabaseAdmin.from("crypto_deposits").insert({
+      user_id: user.id, payment_id: String(inv.id), price_amount: data.usd,
+      pay_currency: data.payCurrency ?? null, status: "waiting", invoice_url: inv.invoice_url,
+      tokens_credited: 0,
+    });
+    return { invoiceUrl: inv.invoice_url, paymentId: inv.id };
+  });
