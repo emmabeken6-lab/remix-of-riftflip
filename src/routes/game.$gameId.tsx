@@ -399,27 +399,43 @@ function JackpotArena() {
     return Array.from(byUser.entries()).map(([id, v], i) => ({ id, ...v, color: SLICE_COLORS[i % SLICE_COLORS.length] }));
   }, [entries]);
 
-  // Spin animation: when round resolves (status ended in last fetch), spin to winner
+  // Spin animation: when round resolves, spin wheel to winner's slice
   const [spinDeg, setSpinDeg] = useState(0);
   const [winnerName, setWinnerName] = useState<string | null>(null);
   const lastRoundIdRef = useRef<string | null>(null);
   const spinningRef = useRef(false);
 
   useEffect(() => {
-    if (round && remaining === 0 && !spinningRef.current) {
+    if (round && remaining === 0 && !spinningRef.current && slices.length >= 2) {
       spinningRef.current = true;
-      void resolveJackpot({ data: { roundId: round.id } }).then(async () => {
-        // After resolution, fetch latest round/winner via getJackpot refetch
-        qc.invalidateQueries({ queryKey: ["jackpot"] });
-        // Pick winner using server seed reveal — replicate calc client-side from current entries to spin to right wedge
-        if (total > 0 && slices.length >= 2) {
-          // We don't have server seed yet; rely on a follow-up render — spin a fake long animation, then snap.
-          setSpinDeg((d) => d + 360 * 8 + Math.floor(Math.random() * 360));
+      void resolveJackpot({ data: { roundId: round.id } }).then((res) => {
+        const winnerId = (res as { winner?: string }).winner;
+        const winnerSlice = slices.find((s) => s.id === winnerId);
+        if (winnerSlice) {
+          // compute mid-angle of winner's slice
+          let acc2 = 0;
+          let mid = 0;
+          for (const s of slices) {
+            const span = (s.amount / total) * 360;
+            if (s.id === winnerId) { mid = acc2 + span / 2; break; }
+            acc2 += span;
+          }
+          // pointer at top (0deg). rotate so mid lands at 0: target = -mid (mod 360)
+          const target = (360 - (mid % 360)) % 360;
+          setSpinDeg((d) => d + 360 * 8 + target - (d % 360));
+          setTimeout(() => {
+            setWinnerName(winnerSlice.name);
+            spinningRef.current = false;
+            qc.invalidateQueries({ queryKey: ["jackpot"] });
+            void refresh();
+          }, 5200);
+        } else {
+          spinningRef.current = false;
+          qc.invalidateQueries({ queryKey: ["jackpot"] });
         }
-        setTimeout(() => { spinningRef.current = false; void refresh(); }, 5500);
       });
     }
-  }, [remaining, round, qc, refresh, total, slices.length]);
+  }, [remaining, round, qc, refresh, total, slices]);
 
   // Reset winner display on new round
   useEffect(() => {
