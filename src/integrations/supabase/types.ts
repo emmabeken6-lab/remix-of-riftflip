@@ -81,6 +81,75 @@ export type Database = {
           },
         ]
       }
+      crypto_deposits: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_url: string | null
+          pay_amount: number | null
+          pay_currency: string | null
+          payment_id: string
+          price_amount: number
+          status: string
+          tokens_credited: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_url?: string | null
+          pay_amount?: number | null
+          pay_currency?: string | null
+          payment_id: string
+          price_amount: number
+          status?: string
+          tokens_credited?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_url?: string | null
+          pay_amount?: number | null
+          pay_currency?: string | null
+          payment_id?: string
+          price_amount?: number
+          status?: string
+          tokens_credited?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      daily_claims: {
+        Row: {
+          amount: number
+          claimed_on: string
+          created_at: string
+          id: string
+          streak_day: number
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          claimed_on: string
+          created_at?: string
+          id?: string
+          streak_day: number
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          claimed_on?: string
+          created_at?: string
+          id?: string
+          streak_day?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           active: boolean
@@ -632,6 +701,30 @@ export type Database = {
         }
         Relationships: []
       }
+      wager_rewards: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          milestone: number
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          milestone: number
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          milestone?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       word_crumbles: {
         Row: {
           answer: string
@@ -730,6 +823,8 @@ export type Database = {
         | "word_crumble_win"
         | "deposit"
         | "withdraw"
+        | "daily_reward"
+        | "wager_reward"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -870,6 +965,8 @@ export const Constants = {
         "word_crumble_win",
         "deposit",
         "withdraw",
+        "daily_reward",
+        "wager_reward",
       ],
     },
   },
