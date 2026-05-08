@@ -144,11 +144,6 @@ export const adminDrawGiveaway = createServerFn({ method: "POST" })
       _reason: "giveaway_win",
       _ref_id: gw.id,
     });
-    const { data: u } = await supabaseAdmin.from("users").select("display_name").eq("id", winner.user_id).single();
-    await supabaseAdmin.from("chat_messages").insert({
-      kind: "system",
-      body: `${u?.display_name ?? "Someone"} won the "${gw.title}" giveaway (${gw.prize_tokens} tokens)!`,
-    });
     await audit(admin.id, "draw_giveaway", { id: data.id, winner: winner.user_id });
     return { winnerId: winner.user_id };
   });

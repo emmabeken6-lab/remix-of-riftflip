@@ -306,11 +306,7 @@ async function resolveJackpotRound(roundId: string) {
   await supabaseAdmin.from("jackpot_rounds").update({
     status: "ended", winner_id: winnerId, winning_ticket: ticket, resolved_at: new Date().toISOString(),
   }).eq("id", round.id);
-  const { data: u } = await supabaseAdmin.from("users").select("display_name").eq("id", winnerId).single();
-  await supabaseAdmin.from("chat_messages").insert({
-    kind: "system", body: `${u?.display_name ?? "Someone"} won the Jackpot of ${total} tokens!`,
-  });
-  return { resolved: true, winner: winnerId, total };
+  return { resolved: true, winner: winnerId, total, ticket, serverSeed: round.server_seed };
 }
 
 // ───────── MINES ─────────
