@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-const TOKENS_PER_USD = 100;
+const TOKEN_USD_PRICE = 0.06; // 1 token = $0.06
 
 function sortedStringify(obj: unknown): string {
   if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/public/nowpayments-ipn")({
         }).eq("payment_id", paymentId);
 
         if ((status === "finished" || status === "confirmed") && Number(dep.tokens_credited) === 0) {
-          const tokens = Math.floor(priceAmount * TOKENS_PER_USD);
+          const tokens = Math.floor(priceAmount / TOKEN_USD_PRICE);
           await supabaseAdmin.rpc("apply_transaction", {
             _user_id: dep.user_id, _delta: tokens, _reason: "deposit",
             _ref_id: dep.id, _meta: { payment_id: paymentId, pay_currency: payCurrency, usd: priceAmount },
