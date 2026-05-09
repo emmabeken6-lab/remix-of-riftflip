@@ -1,79 +1,59 @@
-# Riftflip — Auth, Wallet, Cloud & Admin
+You asked for a lot — here's how I'll deliver it cleanly. I'll do everything below, but breaking it into clear phases so nothing regresses.
 
-## 1. Enable Lovable Cloud
-Turn on Cloud so we have a real database, server functions, and secret storage. Everything below depends on it.
+## Phase 1 — Game smoothness (bugs you flagged)
 
-## 2. Roblox login via bio verification
-A custom auth flow (Roblox doesn't offer OAuth):
+**Coinflip**
+- Stop showing "previous games" and stale results — the active overlay will only appear *after I've actually joined or been joined*, and clears the moment a new lobby opens.
+- New flow: Create lobby → status "waiting for opponent" → opponent joins → both see a 3.5s smooth coin animation → result reveal. No result is rendered before the animation finishes.
+- Real coin: 3D rotateY with two faces (gold heads / silver tails), spins ~10 turns then eases into the final side. Slow, weighted ease-out (matches your video).
+- Resolved-feed list will be removed (you didn't want previous games on screen).
 
-**Step A — Username entry**
-- User types Roblox username on `/signin`.
-- Server function calls `https://users.roblox.com/v1/usernames/users` to resolve the `userId` and display name.
-- Fetch avatar headshot from `https://thumbnails.roblox.com/v1/users/avatar-headshot`.
-- Show profile preview (avatar, display name, username) and a "This is me" confirm button.
+**Jackpot wheel**
+- Replace the flat SVG with a layered "double ring" wheel: outer beveled chrome ring + inner colored slices + center hub with avatar of current leader.
+- Slice colors come from a vivid 12-color palette (cycled per player), each slice gets the player's avatar pinned at its midpoint.
+- Spin uses `cubic-bezier(.15,.85,.2,1)` over 8s, ~14 full turns, lands precisely on winner's slice midpoint, then a 1.5s "winner" reveal with their username + payout.
 
-**Step B — Verification code**
-- Generate a code like `RIFT-KLYT-MMY2` (random 4+4 chars), store it server-side in a `verification_challenges` table tied to the Roblox userId, expires in 10 min.
-- User pastes it into their Roblox profile "About" section.
-- They click "Verify". Server function fetches `https://users.roblox.com/v1/users/{userId}` and checks `description` contains the code.
-- On success: create/find a `users` row keyed by `roblox_id`, mint a session, return to client. Code is invalidated.
+## Phase 2 — Splash + chat events styling
 
-**Session model**
-- Since this isn't Supabase Auth, we issue our own signed session token (HMAC with a server secret) stored in an httpOnly cookie. A `requireAuth` server middleware validates it on every protected call.
+- Splash image goes truly fullscreen (`object-cover`, `inset-0`) with a brief 1.6s hold and fade.
+- Chat gets new pinned event cards at the top (matches your screenshot): RAIN (cyan), GIVEAWAY (purple), TOKEN DROP (amber). Each card shows: title, amount, USD value, countdown timer, "Joined/Entered" pill once you click. Driven by the existing `events` + `giveaways` tables plus a new `token_drops` table.
 
-**Why not Supabase Auth**: Roblox has no OAuth provider; bio verification is the standard pattern in the MM2 community.
+## Phase 3 — Chat XP + levels
 
-## 3. Wallet (replaces Sign In tab)
-- Bottom nav item "Sign In" → "Wallet" (icon: Wallet).
-- `/wallet` route shows: token balance, deposit instructions (placeholder — real MM2 trading flow is out of scope for this pass), withdraw request form, and transaction history.
-- Currency name: **tokens** (plain text, no emoji/icon).
-- Logged-out users on `/wallet` see the Roblox login flow inline.
+- New `user_xp` columns on users (`xp`, `level`, `messages_count`).
+- +1 XP per chat message (rate-limited, 1/3s), level curve `level = floor(sqrt(xp/50))`.
+- Each chat message renders the level pill (e.g. `[37]`) before the username, colored by tier (gray → green → blue → purple → gold), exactly like your screenshot.
 
-## 4. Gating
-- **Chat**: messages list visible to everyone, but composer hidden / replaced with "Sign in to chat" CTA when logged out.
-- **Games**: viewing game pages OK, but "Create Game" / "Place Bet" buttons require login → CTA prompts sign in.
-- Server functions for `createGame`, `placeBet`, `sendMessage`, `withdraw` all check session + re-validate wallet balance server-side before any state change (high-security: never trust client balance).
+## Phase 4 — Rewards leaderboard
 
-## 5. Admin panel (`/admin`)
-- Role check via `user_roles` table (separate table, `app_role` enum: `admin`, `user`) and `has_role()` security-definer function. RLS uses the function — never queries the table directly to avoid recursion.
-- First admin: seeded by Roblox username via SQL after Cloud is enabled (you'll tell me which username).
-- Pages:
-  - **Users** — search, view balance, adjust tokens (with audit log), ban/unban.
-  - **Giveaways** — create/edit/end giveaways, pick winners, view entries.
-  - **Events** — create "Current Event" shown on home, schedule, end.
-  - **Word Crumbles** — manage the word puzzle game (word list CRUD, active round, payout).
-  - **Audit log** — every admin action recorded with admin id, action, target, timestamp.
+- Add a "Leaderboard" section on `/rewards` with three tabs: **Top Wagered (7d)**, **Top Wins (7d)**, **Top XP (all-time)**. Avatars + rank medals for top 3.
 
-## 6. Database schema (high level)
-- `users` — id, roblox_id (unique), roblox_username, display_name, avatar_url, balance_tokens (numeric, default 0), banned bool, created_at
-- `user_roles` — user_id, role (enum)
-- `verification_challenges` — roblox_id, code, expires_at
-- `sessions` — token_hash, user_id, expires_at
-- `transactions` — user_id, delta, reason, ref_id, created_at (immutable, append-only)
-- `games` — id, type (coinflip/jackpot/minefield), creator_id, wager, status, result, created_at
-- `game_bets` — game_id, user_id, amount, side
-- `chat_messages` — user_id, body, created_at
-- `events` — title, description, starts_at, ends_at, active
-- `giveaways` — title, prize_tokens, ends_at, status; `giveaway_entries` — giveaway_id, user_id
-- `word_crumbles_rounds` / `word_crumbles_words` / `word_crumbles_entries`
-- `admin_audit_log` — admin_id, action, payload jsonb, created_at
+## Phase 5 — In-app NOWPayments deposit (no redirect)
 
-All tables RLS-on. Reads scoped per-table (e.g. users see only their own balance and transactions; chat is public read). Writes go through server functions only.
+- Switch from invoice flow to `/v1/payment` endpoint — returns `pay_address` + `pay_amount` for the chosen crypto.
+- New deposit modal stays on-site: pick currency (BTC/ETH/LTC/USDT-TRC20/SOL), enter USD amount, server creates the payment and shows the deposit address + QR code + countdown + live status (polled every 6s).
+- **Token rate fixed to 1 token = $0.06** (so `tokens = usd / 0.06`). Update the IPN handler to match.
 
-## 7. Technical notes
-- Roblox API calls happen server-side (`createServerFn`) to avoid CORS and to validate.
-- Session cookie: `riftflip_session`, httpOnly, Secure, SameSite=Lax, 30-day expiry, stored hashed in DB.
-- Balance changes always via a single `applyTransaction(userId, delta, reason)` server helper that wraps a SQL transaction with row-level lock to prevent races.
-- `placeBet` flow: lock user row → check balance ≥ wager → debit → insert bet → unlock. Wins credited similarly when game resolves.
+## Phase 6 — Admin: Discord-style roles
 
-## 8. Out of scope for this pass
-- Real MM2 item deposits/withdrawals (requires Roblox bot infrastructure) — wallet shows balance + manual admin top-up only for now.
-- Actual game logic improvements beyond what already exists.
-- Email/SMS/2FA.
+- New tables: `roles` (name, color hex, icon name, position, perms jsonb) and `role_assignments` (user_id, role_id).
+- Admin panel gains a "Roles" tab: create/edit/delete roles with color picker, lucide icon picker, drag-to-reorder, permission checkboxes (manage_users, manage_roles, manage_economy, ban_users, mute_chat, view_logs). Assign roles to users with a search box.
+- Chat usernames get colored by their highest role (matches Discord behavior).
 
----
+## Phase 7 — Vercel-deployable
 
-**Before I build, two quick questions:**
+- Add `vercel.json` + verify the TanStack Start Vite build outputs an SSR bundle Vercel can host (preset switch in `vite.config.ts` if needed). Document the env vars you'll need to paste into Vercel.
 
-1. **First admin username** — what's your Roblox username so I can seed you as the first admin?
-2. **Word Crumbles** — you mentioned it as something to manage in admin. Does it already have rules in mind (e.g. unscramble a word, payout on first correct answer), or should I design a simple version? It's not currently in the games list — should I also add it as a 4th game card?
+## Technical notes (for me / you can skim)
+
+- DB migrations grouped into one batch: `roles`, `role_assignments`, `token_drops`, `event_entries`, plus columns `users.xp`, `users.level`, `users.messages_count`.
+- All chat/event/role data exposed read-only via RLS to public; writes go through server functions with role-permission checks.
+- Coinflip "waiting" state is just a UI state — no schema change needed; I'll add a realtime subscription on `games` for the lobby creator so they get the join event instantly instead of polling every 2s.
+- Splash already has `sessionStorage` gate; I'll just fix the sizing.
+
+## What I will NOT change
+
+- Mines (you said it's fine).
+- Auth, transactions ledger, fair-system internals — only additive.
+
+Confirm and I'll execute Phase 1–7 in order in the same loop. If you want me to cut anything (e.g. skip Vercel config, skip leaderboard for now), say which.
