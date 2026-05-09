@@ -596,12 +596,15 @@ export const enterGiveaway = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// NOWPayments crypto deposit
-const TOKENS_PER_USD = 100;
+// NOWPayments crypto deposit — IN-APP, no redirect.
+// Pricing: 1 token = $0.06  =>  tokens = usd / 0.06
+export const TOKEN_USD_PRICE = 0.06;
+export function tokensForUsd(usd: number) { return Math.floor(usd / TOKEN_USD_PRICE); }
+
 export const createCryptoDeposit = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     usd: z.number().positive().min(1).max(10000),
-    payCurrency: z.string().trim().min(2).max(10).optional(),
+    payCurrency: z.string().trim().min(2).max(12),
   }).parse(d))
   .handler(async ({ data }) => {
     const user = await requireUser();
@@ -611,25 +614,184 @@ export const createCryptoDeposit = createServerFn({ method: "POST" })
     const body = {
       price_amount: data.usd,
       price_currency: "usd",
-      pay_currency: data.payCurrency,
+      pay_currency: data.payCurrency.toLowerCase(),
       order_id: orderId,
-      order_description: `Riftflip ${data.usd * TOKENS_PER_USD} tokens`,
+      order_description: `Riftflip ${tokensForUsd(data.usd)} tokens`,
       ipn_callback_url: `${process.env.SUPABASE_URL?.replace(/\/+$/,"") ?? ""}/api/public/nowpayments-ipn`,
     };
-    const res = await fetch("https://api.nowpayments.io/v1/invoice", {
+    const res = await fetch("https://api.nowpayments.io/v1/payment", {
       method: "POST",
       headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
       const t = await res.text();
-      throw new Error(`NOWPayments error: ${t.slice(0, 160)}`);
+      throw new Error(`Deposit error: ${t.slice(0, 160)}`);
     }
-    const inv = await res.json() as { id: string; invoice_url: string };
+    const p = await res.json() as {
+      payment_id: string | number; pay_address: string; pay_amount: number;
+      pay_currency: string; price_amount: number; payment_status: string;
+      expiration_estimate_date?: string; network?: string;
+    };
     await supabaseAdmin.from("crypto_deposits").insert({
-      user_id: user.id, payment_id: String(inv.id), price_amount: data.usd,
-      pay_currency: data.payCurrency ?? null, status: "waiting", invoice_url: inv.invoice_url,
+      user_id: user.id,
+      payment_id: String(p.payment_id),
+      price_amount: data.usd,
+      pay_currency: p.pay_currency,
+      pay_amount: p.pay_amount,
+      status: p.payment_status ?? "waiting",
+      invoice_url: null,
       tokens_credited: 0,
     });
-    return { invoiceUrl: inv.invoice_url, paymentId: inv.id };
+    return {
+      paymentId: String(p.payment_id),
+      payAddress: p.pay_address,
+      payAmount: p.pay_amount,
+      payCurrency: p.pay_currency,
+      network: p.network ?? null,
+      tokens: tokensForUsd(data.usd),
+      usd: data.usd,
+      expiresAt: p.expiration_estimate_date ?? null,
+      status: p.payment_status ?? "waiting",
+    };
+  });
+
+export const getDepositStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ paymentId: z.string().min(1).max(64) }).parse(d))
+  .handler(async ({ data }) => {
+    const user = await requireUser();
+    const { data: dep } = await supabaseAdmin
+      .from("crypto_deposits").select("*").eq("payment_id", data.paymentId).maybeSingle();
+    if (!dep || dep.user_id !== user.id) throw new Error("Not found");
+    return {
+      status: dep.status,
+      tokensCredited: Number(dep.tokens_credited),
+      payAmount: dep.pay_amount ? Number(dep.pay_amount) : null,
+      payCurrency: dep.pay_currency,
+    };
+  });
+
+// Available currencies (cached client-side)
+export const listDepositCurrencies = createServerFn({ method: "GET" }).handler(async () => {
+  // A curated subset — covers the common ones without making an extra API call.
+  return {
+    currencies: [
+      { code: "btc",       name: "Bitcoin" },
+      { code: "eth",       name: "Ethereum" },
+      { code: "ltc",       name: "Litecoin" },
+      { code: "sol",       name: "Solana" },
+      { code: "doge",      name: "Dogecoin" },
+      { code: "usdttrc20", name: "USDT (TRC20)" },
+      { code: "usdterc20", name: "USDT (ERC20)" },
+      { code: "usdcerc20", name: "USDC (ERC20)" },
+    ],
+  };
+});
+
+// ───────── LEADERBOARD ─────────
+export const getLeaderboards = createServerFn({ method: "GET" }).handler(async () => {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+
+  // Top wagered (last 7d): sum of |delta| where reason=bet_placed
+  const { data: wagerTx } = await supabaseAdmin
+    .from("transactions")
+    .select("user_id, delta")
+    .eq("reason", "bet_placed")
+    .gte("created_at", sevenDaysAgo);
+
+  // Top wins (last 7d): sum of delta where reason=bet_won
+  const { data: winTx } = await supabaseAdmin
+    .from("transactions")
+    .select("user_id, delta")
+    .eq("reason", "bet_won")
+    .gte("created_at", sevenDaysAgo);
+
+  function tally(rows: { user_id: string; delta: number }[]) {
+    const m = new Map<string, number>();
+    for (const r of rows ?? []) m.set(r.user_id, (m.get(r.user_id) ?? 0) + Math.abs(Number(r.delta)));
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  }
+
+  const wageredTop = tally(wagerTx ?? []);
+  const wonTop = tally(winTx ?? []);
+
+  // Top XP (all-time)
+  const { data: xpUsers } = await supabaseAdmin
+    .from("users")
+    .select("id, display_name, avatar_url, xp, level")
+    .order("xp", { ascending: false })
+    .limit(10);
+
+  const allIds = Array.from(new Set([
+    ...wageredTop.map(([id]) => id),
+    ...wonTop.map(([id]) => id),
+  ]));
+  const { data: profiles } = allIds.length
+    ? await supabaseAdmin.from("users").select("id, display_name, avatar_url, level").in("id", allIds)
+    : { data: [] as { id: string; display_name: string; avatar_url: string | null; level: number }[] };
+  const byId = new Map((profiles ?? []).map((u) => [u.id, u]));
+
+  return {
+    wagered: wageredTop.map(([id, amount]) => ({ user: byId.get(id) ?? null, amount })),
+    won: wonTop.map(([id, amount]) => ({ user: byId.get(id) ?? null, amount })),
+    xp: (xpUsers ?? []).map((u) => ({ user: u, amount: Number(u.xp) })),
+  };
+});
+
+// ───────── CHAT XP / LEVEL ─────────
+function levelFromXp(xp: number) { return Math.floor(Math.sqrt(xp / 50)); }
+
+export async function awardChatXp(userId: string) {
+  const { data: u } = await supabaseAdmin
+    .from("users").select("xp, messages_count").eq("id", userId).maybeSingle();
+  if (!u) return;
+  const newXp = Number(u.xp ?? 0) + 1;
+  const newLevel = levelFromXp(newXp);
+  await supabaseAdmin
+    .from("users")
+    .update({ xp: newXp, level: newLevel, messages_count: (u.messages_count ?? 0) + 1 })
+    .eq("id", userId);
+}
+
+// ───────── TOKEN DROPS / RAINS ─────────
+export const listActiveDrops = createServerFn({ method: "GET" }).handler(async () => {
+  const { data } = await supabaseAdmin
+    .from("token_drops")
+    .select("*")
+    .eq("status", "active")
+    .gte("ends_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(5);
+  return { drops: data ?? [] };
+});
+
+export const claimDrop = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ dropId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const user = await requireUser();
+    const { data: drop } = await supabaseAdmin
+      .from("token_drops").select("*").eq("id", data.dropId).maybeSingle();
+    if (!drop || drop.status !== "active") throw new Error("Drop ended");
+    if (new Date(drop.ends_at) < new Date()) throw new Error("Drop expired");
+    if (drop.claims_count >= drop.max_claims) throw new Error("All claimed");
+
+    const { data: existing } = await supabaseAdmin
+      .from("event_claims").select("id").eq("drop_id", drop.id).eq("user_id", user.id).maybeSingle();
+    if (existing) throw new Error("Already claimed");
+
+    const { error: insErr } = await supabaseAdmin
+      .from("event_claims")
+      .insert({ drop_id: drop.id, user_id: user.id, amount: drop.per_claim });
+    if (insErr) throw new Error(insErr.message);
+
+    await supabaseAdmin.from("token_drops").update({
+      claims_count: drop.claims_count + 1,
+      status: drop.claims_count + 1 >= drop.max_claims ? "finished" : "active",
+    }).eq("id", drop.id);
+
+    await supabaseAdmin.rpc("apply_transaction", {
+      _user_id: user.id, _delta: Number(drop.per_claim), _reason: "token_drop",
+      _ref_id: drop.id, _meta: { kind: drop.kind },
+    });
+    return { amount: Number(drop.per_claim) };
   });

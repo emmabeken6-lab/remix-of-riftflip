@@ -80,22 +80,23 @@ function CoinflipArena() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [active, setActive] = useState<{
-    gameId: string; result: "heads" | "tails"; won: boolean; payout: number; wager: number;
-    creatorSide: "heads" | "tails"; joinerSide: "heads" | "tails";
+    gameId: string;
+    phase: "waiting" | "flipping" | "result";
+    result?: "heads" | "tails";
+    won?: boolean; payout?: number; wager: number;
+    creatorSide: "heads" | "tails"; joinerSide?: "heads" | "tails";
     creator: { display_name: string; avatar_url: string | null } | null;
     joiner: { display_name: string; avatar_url: string | null } | null;
-    serverSeed: string; serverSeedHash: string;
+    serverSeed?: string; serverSeedHash: string;
   } | null>(null);
-  const [animating, setAnimating] = useState(false);
 
   const { data: lobbies } = useQuery({
-    queryKey: ["coinflip-lobbies"], queryFn: () => listCoinflipLobbies(), refetchInterval: 2000,
+    queryKey: ["coinflip-lobbies"], queryFn: () => listCoinflipLobbies(), refetchInterval: 1500,
   });
 
-  function startAnimationFor(payload: typeof active) {
-    setActive(payload);
-    setAnimating(true);
-    setTimeout(() => setAnimating(false), 2800);
+  function showFlip(payload: NonNullable<typeof active>) {
+    setActive({ ...payload, phase: "flipping" });
+    setTimeout(() => setActive((cur) => (cur && cur.gameId === payload.gameId ? { ...cur, phase: "result" } : cur)), 3500);
   }
 
   async function join(lobby: Lobby) {
@@ -103,17 +104,17 @@ function CoinflipArena() {
     if ((user.balance ?? 0) < lobby.wager) return toast.error("Not enough tokens");
     try {
       const r = await joinCoinflip({ data: { gameId: lobby.id } });
-      const meIsCreator = false;
       const youWon = r.winnerId === user.id;
-      startAnimationFor({
-        gameId: r.gameId, result: r.result as "heads" | "tails",
+      showFlip({
+        gameId: r.gameId, phase: "flipping",
+        result: r.result as "heads" | "tails",
         won: youWon, payout: r.payout, wager: lobby.wager,
-        creatorSide: r.creatorSide as "heads" | "tails", joinerSide: r.joinerSide as "heads" | "tails",
+        creatorSide: r.creatorSide as "heads" | "tails",
+        joinerSide: r.joinerSide as "heads" | "tails",
         creator: lobby.creator,
         joiner: { display_name: user.displayName, avatar_url: user.avatarUrl },
         serverSeed: r.serverSeed, serverSeedHash: r.serverSeedHash,
       });
-      void meIsCreator;
       await refresh();
       qc.invalidateQueries({ queryKey: ["coinflip-lobbies"] });
       qc.invalidateQueries({ queryKey: ["wallet"] });
@@ -123,25 +124,35 @@ function CoinflipArena() {
   async function cancel(lobbyId: string) {
     try {
       await cancelCoinflip({ data: { gameId: lobbyId } });
+      setActive((cur) => (cur && cur.gameId === lobbyId ? null : cur));
       await refresh();
       qc.invalidateQueries({ queryKey: ["coinflip-lobbies"] });
       toast.success("Lobby cancelled, wager refunded");
     } catch (e) { toast.error((e as Error).message); }
   }
 
-  // Subscribe (poll) for resolved games involving me as creator to trigger animation
+  // Realtime detection: when MY open lobby gets joined and resolved, animate.
   const seenRef = useRef(new Set<string>());
   useEffect(() => {
     if (!user || !lobbies) return;
+    // Find my own waiting lobby — show waiting state
+    const myWaiting = lobbies.find((l) => l.status === "open" && l.creator?.display_name === user.displayName);
+    if (myWaiting && (!active || active.gameId !== myWaiting.id)) {
+      setActive({
+        gameId: myWaiting.id, phase: "waiting", wager: myWaiting.wager,
+        creatorSide: myWaiting.creatorSide as "heads" | "tails",
+        creator: myWaiting.creator, joiner: null,
+        serverSeedHash: myWaiting.serverSeedHash ?? "",
+      });
+    }
+    // If my waiting lobby just got resolved, fetch + flip
     for (const l of lobbies) {
       if (l.status === "resolved" && l.creator?.display_name === user.displayName && !seenRef.current.has(l.id) && l.result?.result) {
         seenRef.current.add(l.id);
-        if (active?.gameId === l.id) continue;
-        // Fetch full game to get seeds
         void getCoinflipGame({ data: { gameId: l.id } }).then((g) => {
           if (!g.result) return;
-          startAnimationFor({
-            gameId: g.id,
+          showFlip({
+            gameId: g.id, phase: "flipping",
             result: g.result.result as "heads" | "tails",
             won: g.result.winner_id === user.id,
             payout: g.result.payout ?? 0,
@@ -155,21 +166,15 @@ function CoinflipArena() {
         });
       }
     }
+    // If my waiting lobby disappeared (cancelled by me), clear
+    if (active?.phase === "waiting" && !lobbies.some((l) => l.id === active.gameId && l.status === "open")) {
+      setActive((cur) => (cur?.phase === "waiting" ? null : cur));
+    }
   }, [lobbies, user, active, refresh]);
 
   return (
     <div className="space-y-4">
-      {active && (
-        <CoinflipFlipper
-          animating={animating}
-          finalSide={active.result}
-          creator={active.creator} joiner={active.joiner}
-          creatorSide={active.creatorSide} joinerSide={active.joinerSide}
-          wager={active.wager} payout={active.payout} won={active.won}
-          serverSeedHash={active.serverSeedHash} serverSeed={active.serverSeed}
-          onClose={() => setActive(null)}
-        />
-      )}
+      {active && <CoinflipStage data={active} onClose={() => setActive(null)} onCancel={() => active.phase === "waiting" && void cancel(active.gameId)} />}
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
         <div className="mb-3 flex items-center justify-between">
@@ -216,28 +221,6 @@ function CoinflipArena() {
           })}
         </ul>
       </div>
-
-      {/* Recently resolved feed */}
-      {lobbies && lobbies.some((l) => l.status === "resolved") && (
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <div className="mb-2 text-xs font-semibold text-muted-foreground">Recent flips</div>
-          <ul className="space-y-2">
-            {lobbies.filter((l) => l.status === "resolved").slice(0, 8).map((l) => {
-              const winnerIsCreator = l.result?.winner_id && l.creator && l.result.winner_id === undefined ? false : l.result?.winner_id === undefined ? false : true;
-              void winnerIsCreator;
-              return (
-                <li key={l.id} className="flex items-center gap-2 rounded-lg bg-background/60 p-2 text-xs">
-                  <span className="font-semibold">{l.creator?.display_name}</span>
-                  <span className="text-muted-foreground">vs</span>
-                  <span className="font-semibold">{l.joiner?.display_name ?? "—"}</span>
-                  <span className="ml-auto rounded-full bg-muted px-2 py-0.5 font-bold uppercase">{l.result?.result ?? "?"}</span>
-                  <span className="font-bold">{l.wager * 2}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
 
       {showCreate && (
         <CreateCoinflipModal
@@ -303,54 +286,98 @@ function CreateCoinflipModal({ onClose, onCreated }: { onClose: () => void; onCr
   );
 }
 
-function CoinflipFlipper({
-  animating, finalSide, creator, joiner, creatorSide, joinerSide,
-  wager, payout, won, serverSeedHash, serverSeed, onClose,
+function CoinflipStage({
+  data, onClose, onCancel,
 }: {
-  animating: boolean;
-  finalSide: "heads" | "tails";
-  creator: { display_name: string; avatar_url: string | null } | null;
-  joiner: { display_name: string; avatar_url: string | null } | null;
-  creatorSide: "heads" | "tails";
-  joinerSide: "heads" | "tails";
-  wager: number; payout: number; won: boolean;
-  serverSeedHash: string; serverSeed: string;
+  data: {
+    gameId: string;
+    phase: "waiting" | "flipping" | "result";
+    result?: "heads" | "tails";
+    won?: boolean; payout?: number; wager: number;
+    creatorSide: "heads" | "tails"; joinerSide?: "heads" | "tails";
+    creator: { display_name: string; avatar_url: string | null } | null;
+    joiner: { display_name: string; avatar_url: string | null } | null;
+    serverSeed?: string; serverSeedHash: string;
+  };
   onClose: () => void;
+  onCancel: () => void;
 }) {
-  // Calculate rotation: final lands on heads (0deg) or tails (180deg) plus full spins.
-  const target = finalSide === "heads" ? 0 : 180;
-  const spins = 6;
-  const finalRotation = spins * 360 + target;
+  // Final coin rotation — heads = 0, tails = 180. Add 10 spins.
+  const target = data.result === "tails" ? 180 : 0;
+  const spinning = data.phase === "flipping";
+  const finalRotation = 10 * 360 + target;
+
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-amber-500/10 to-orange-600/10 p-5">
       <button type="button" onClick={onClose} className="absolute right-2 top-2 rounded-full p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+
       <div className="grid grid-cols-3 items-center gap-2">
-        <PlayerCard u={creator} side={creatorSide} />
+        <PlayerCard u={data.creator} side={data.creatorSide} />
+
         <div className="flex flex-col items-center">
-          <div
-            className="h-20 w-20 rounded-full border-4 border-amber-300 bg-gradient-to-br from-amber-300 to-yellow-600 shadow-[0_0_30px_rgba(251,191,36,0.6)] [transform-style:preserve-3d]"
-            style={{
-              transition: animating ? "transform 2.6s cubic-bezier(.2,.85,.25,1)" : "none",
-              transform: `rotateY(${animating ? finalRotation : target}deg)`,
-            }}
-          >
-            <div className="flex h-full w-full items-center justify-center text-2xl font-extrabold text-amber-950">
-              {finalSide === "heads" ? "H" : "T"}
+          <div className="relative h-24 w-24 [perspective:800px]">
+            <div
+              className="absolute inset-0 [transform-style:preserve-3d]"
+              style={{
+                transition: spinning ? "transform 3.4s cubic-bezier(.18,.7,.2,1)" : "none",
+                transform: `rotateY(${data.phase === "waiting" ? 0 : spinning ? finalRotation : target}deg)`,
+              }}
+            >
+              {/* Heads face */}
+              <div className="absolute inset-0 flex items-center justify-center rounded-full border-4 border-amber-200 bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-700 text-3xl font-extrabold text-amber-950 shadow-[0_0_30px_rgba(251,191,36,0.6)] [backface-visibility:hidden]">
+                H
+              </div>
+              {/* Tails face */}
+              <div
+                className="absolute inset-0 flex items-center justify-center rounded-full border-4 border-slate-300 bg-gradient-to-br from-slate-200 via-slate-400 to-slate-700 text-3xl font-extrabold text-slate-900 shadow-[0_0_30px_rgba(148,163,184,0.5)] [backface-visibility:hidden]"
+                style={{ transform: "rotateY(180deg)" }}
+              >
+                T
+              </div>
             </div>
           </div>
           <div className="mt-2 text-xs uppercase tracking-wide text-muted-foreground">Pot</div>
-          <div className="text-lg font-extrabold">{wager * 2}</div>
+          <div className="text-lg font-extrabold">{data.wager * 2}</div>
         </div>
-        <PlayerCard u={joiner} side={joinerSide} />
+
+        {data.phase === "waiting" ? (
+          <div className="flex flex-col items-center gap-1 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-border">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+            <div className="text-xs font-bold text-muted-foreground">Waiting…</div>
+          </div>
+        ) : (
+          <PlayerCard u={data.joiner} side={data.joinerSide ?? (data.creatorSide === "heads" ? "tails" : "heads")} />
+        )}
       </div>
-      {!animating && (
-        <div className={`mt-4 rounded-xl border p-3 text-center text-sm font-bold ${won ? "border-[color:var(--success)]/40 bg-[color:var(--success)]/10 text-[color:var(--success)]" : "border-destructive/40 bg-destructive/10 text-destructive"}`}>
-          {finalSide.toUpperCase()} — {won ? `You won ${payout} tokens` : `You lost ${wager}`}
+
+      {data.phase === "waiting" && (
+        <div className="mt-4 space-y-2">
+          <div className="rounded-xl border border-dashed border-border bg-background/60 p-3 text-center text-sm">
+            Waiting for an opponent to join your <span className="font-bold uppercase">{data.creatorSide}</span> bet of <span className="font-bold">{data.wager}</span>…
+          </div>
+          <button onClick={onCancel} className="w-full rounded-full border border-destructive/40 bg-destructive/10 px-4 py-2 text-xs font-semibold text-destructive">
+            Cancel & refund
+          </button>
         </div>
       )}
-      {serverSeedHash && <FairBadge hash={serverSeedHash} />}
-      {!animating && serverSeed && (
-        <div className="mt-1 text-[10px] break-all text-muted-foreground">Revealed seed: {serverSeed}</div>
+
+      {data.phase === "flipping" && (
+        <div className="mt-4 rounded-xl border border-border bg-background/60 p-3 text-center text-sm font-bold">
+          Flipping…
+        </div>
+      )}
+
+      {data.phase === "result" && data.result && (
+        <div className={`mt-4 rounded-xl border p-3 text-center text-sm font-bold ${data.won ? "border-[color:var(--success)]/40 bg-[color:var(--success)]/10 text-[color:var(--success)]" : "border-destructive/40 bg-destructive/10 text-destructive"}`}>
+          {data.result.toUpperCase()} — {data.won ? `You won ${data.payout} tokens` : `You lost ${data.wager}`}
+        </div>
+      )}
+
+      {data.serverSeedHash && <FairBadge hash={data.serverSeedHash} />}
+      {data.phase === "result" && data.serverSeed && (
+        <div className="mt-1 text-[10px] break-all text-muted-foreground">Revealed seed: {data.serverSeed}</div>
       )}
     </div>
   );
@@ -485,28 +512,42 @@ function JackpotArena() {
         </div>
       </div>
 
-      <div className="relative mx-auto my-2 h-[240px] w-[240px]">
+      <div className="relative mx-auto my-2 h-[260px] w-[260px]">
         {/* Pointer */}
-        <div className="absolute left-1/2 top-[-6px] z-10 -translate-x-1/2">
-          <div className="h-0 w-0 border-x-[10px] border-t-[16px] border-x-transparent border-t-foreground" />
+        <div className="absolute left-1/2 top-[-2px] z-20 -translate-x-1/2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+          <div className="h-0 w-0 border-x-[12px] border-t-[20px] border-x-transparent border-t-amber-300" />
         </div>
-        <svg
-          viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}
-          className="drop-shadow-[0_0_30px_rgba(255,255,255,0.08)]"
-          style={{
-            transition: "transform 5s cubic-bezier(.15,.85,.2,1)",
-            transform: `rotate(${spinDeg}deg)`,
-          }}
-        >
-          {arcs.length === 0 ? (
-            <circle cx={CX} cy={CY} r={R} fill="hsl(var(--muted))" />
-          ) : arcs.length === 1 ? (
-            <circle cx={CX} cy={CY} r={R} fill={arcs[0].color} />
-          ) : arcs.map((a) => <path key={a.id} d={a.d} fill={a.color} stroke="hsl(var(--background))" strokeWidth="2" />)}
-          <circle cx={CX} cy={CY} r={36} fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
-          <text x={CX} y={CY - 2} textAnchor="middle" className="fill-foreground" fontSize="11" fontWeight="700">POT</text>
-          <text x={CX} y={CY + 12} textAnchor="middle" className="fill-foreground" fontSize="13" fontWeight="800">{total.toFixed(0)}</text>
-        </svg>
+        {/* Outer chrome ring */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-zinc-300 via-zinc-500 to-zinc-800 p-[6px] shadow-[0_0_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(255,255,255,0.15)]">
+          <div className="h-full w-full rounded-full bg-zinc-900 p-[4px]">
+            <svg
+              viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" height="100%"
+              style={{
+                transition: "transform 7.5s cubic-bezier(.12,.85,.18,1)",
+                transform: `rotate(${spinDeg}deg)`,
+              }}
+            >
+              <defs>
+                {arcs.map((a) => (
+                  <radialGradient key={`g-${a.id}`} id={`g-${a.id}`} cx="50%" cy="50%" r="65%">
+                    <stop offset="0%" stopColor={a.color} stopOpacity="1" />
+                    <stop offset="100%" stopColor={a.color} stopOpacity="0.7" />
+                  </radialGradient>
+                ))}
+              </defs>
+              {arcs.length === 0 ? (
+                <circle cx={CX} cy={CY} r={R} fill="hsl(var(--muted))" />
+              ) : arcs.length === 1 ? (
+                <circle cx={CX} cy={CY} r={R} fill={`url(#g-${arcs[0].id})`} stroke="rgba(0,0,0,0.4)" strokeWidth="2" />
+              ) : arcs.map((a) => <path key={a.id} d={a.d} fill={`url(#g-${a.id})`} stroke="rgba(0,0,0,0.5)" strokeWidth="2" />)}
+              {/* Inner ring */}
+              <circle cx={CX} cy={CY} r={48} fill="hsl(var(--card))" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
+              <circle cx={CX} cy={CY} r={42} fill="none" stroke="rgba(255,215,0,0.6)" strokeWidth="1" />
+              <text x={CX} y={CY - 4} textAnchor="middle" className="fill-foreground" fontSize="10" fontWeight="700">POT</text>
+              <text x={CX} y={CY + 12} textAnchor="middle" className="fill-foreground" fontSize="14" fontWeight="800">{total.toFixed(0)}</text>
+            </svg>
+          </div>
+        </div>
       </div>
 
       <div className="mt-2 text-center">

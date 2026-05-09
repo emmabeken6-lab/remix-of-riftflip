@@ -12,21 +12,25 @@ export default function SplashScreen() {
 
   useEffect(() => {
     if (!show) return;
-    const t1 = setTimeout(() => setFading(true), 1800);
+    const t1 = setTimeout(() => setFading(true), 1600);
     const t2 = setTimeout(() => {
       sessionStorage.setItem(KEY, "1");
       setShow(false);
-    }, 2400);
+    }, 2200);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [show]);
 
   if (!show) return null;
   return (
     <div
-      className={`fixed inset-0 z-[100] flex items-center justify-center bg-background transition-opacity duration-500 ${fading ? "opacity-0" : "opacity-100"}`}
+      className={`fixed inset-0 z-[100] bg-black transition-opacity duration-500 ${fading ? "opacity-0" : "opacity-100"}`}
       aria-hidden
     >
-      <img src={splash} alt="Riftflip" className="max-h-[80vh] w-auto object-contain animate-scale-in" />
+      <img
+        src={splash}
+        alt="Riftflip"
+        className="absolute inset-0 h-full w-full object-cover animate-scale-in"
+      />
     </div>
   );
 }

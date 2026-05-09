@@ -150,6 +150,38 @@ export type Database = {
         }
         Relationships: []
       }
+      event_claims: {
+        Row: {
+          amount: number
+          created_at: string
+          drop_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          drop_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          drop_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_claims_drop_id_fkey"
+            columns: ["drop_id"]
+            isOneToOne: false
+            referencedRelation: "token_drops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           active: boolean
@@ -533,6 +565,65 @@ export type Database = {
           },
         ]
       }
+      role_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          role_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_assignments_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          perms: Json
+          position: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          perms?: Json
+          position?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          perms?: Json
+          position?: number
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           created_at: string
@@ -570,6 +661,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      token_drops: {
+        Row: {
+          claims_count: number
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          kind: string
+          max_claims: number
+          per_claim: number
+          status: string
+          total_tokens: number
+        }
+        Insert: {
+          claims_count?: number
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          kind?: string
+          max_claims: number
+          per_claim: number
+          status?: string
+          total_tokens: number
+        }
+        Update: {
+          claims_count?: number
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          kind?: string
+          max_claims?: number
+          per_claim?: number
+          status?: string
+          total_tokens?: number
+        }
+        Relationships: []
       }
       transactions: {
         Row: {
@@ -644,8 +774,11 @@ export type Database = {
           display_name: string
           id: string
           last_seen_at: string
+          level: number
+          messages_count: number
           roblox_id: number
           roblox_username: string
+          xp: number
         }
         Insert: {
           avatar_url?: string | null
@@ -655,8 +788,11 @@ export type Database = {
           display_name: string
           id?: string
           last_seen_at?: string
+          level?: number
+          messages_count?: number
           roblox_id: number
           roblox_username: string
+          xp?: number
         }
         Update: {
           avatar_url?: string | null
@@ -666,8 +802,11 @@ export type Database = {
           display_name?: string
           id?: string
           last_seen_at?: string
+          level?: number
+          messages_count?: number
           roblox_id?: number
           roblox_username?: string
+          xp?: number
         }
         Relationships: []
       }
@@ -825,6 +964,7 @@ export type Database = {
         | "withdraw"
         | "daily_reward"
         | "wager_reward"
+        | "token_drop"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -967,6 +1107,7 @@ export const Constants = {
         "withdraw",
         "daily_reward",
         "wager_reward",
+        "token_drop",
       ],
     },
   },
