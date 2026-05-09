@@ -6,7 +6,7 @@ import { requireUser } from "@/server/auth.server";
 export const listMessages = createServerFn({ method: "GET" }).handler(async () => {
   const { data } = await supabaseAdmin
     .from("chat_messages")
-    .select("id, kind, body, meta, created_at, user_id, users(roblox_username, display_name, avatar_url)")
+    .select("id, kind, body, meta, created_at, user_id, users(roblox_username, display_name, avatar_url, level, xp)")
     .order("created_at", { ascending: false })
     .limit(50);
   return { messages: (data ?? []).reverse() };
