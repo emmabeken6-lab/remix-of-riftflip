@@ -512,28 +512,42 @@ function JackpotArena() {
         </div>
       </div>
 
-      <div className="relative mx-auto my-2 h-[240px] w-[240px]">
+      <div className="relative mx-auto my-2 h-[260px] w-[260px]">
         {/* Pointer */}
-        <div className="absolute left-1/2 top-[-6px] z-10 -translate-x-1/2">
-          <div className="h-0 w-0 border-x-[10px] border-t-[16px] border-x-transparent border-t-foreground" />
+        <div className="absolute left-1/2 top-[-2px] z-20 -translate-x-1/2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+          <div className="h-0 w-0 border-x-[12px] border-t-[20px] border-x-transparent border-t-amber-300" />
         </div>
-        <svg
-          viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}
-          className="drop-shadow-[0_0_30px_rgba(255,255,255,0.08)]"
-          style={{
-            transition: "transform 5s cubic-bezier(.15,.85,.2,1)",
-            transform: `rotate(${spinDeg}deg)`,
-          }}
-        >
-          {arcs.length === 0 ? (
-            <circle cx={CX} cy={CY} r={R} fill="hsl(var(--muted))" />
-          ) : arcs.length === 1 ? (
-            <circle cx={CX} cy={CY} r={R} fill={arcs[0].color} />
-          ) : arcs.map((a) => <path key={a.id} d={a.d} fill={a.color} stroke="hsl(var(--background))" strokeWidth="2" />)}
-          <circle cx={CX} cy={CY} r={36} fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
-          <text x={CX} y={CY - 2} textAnchor="middle" className="fill-foreground" fontSize="11" fontWeight="700">POT</text>
-          <text x={CX} y={CY + 12} textAnchor="middle" className="fill-foreground" fontSize="13" fontWeight="800">{total.toFixed(0)}</text>
-        </svg>
+        {/* Outer chrome ring */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-zinc-300 via-zinc-500 to-zinc-800 p-[6px] shadow-[0_0_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(255,255,255,0.15)]">
+          <div className="h-full w-full rounded-full bg-zinc-900 p-[4px]">
+            <svg
+              viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" height="100%"
+              style={{
+                transition: "transform 7.5s cubic-bezier(.12,.85,.18,1)",
+                transform: `rotate(${spinDeg}deg)`,
+              }}
+            >
+              <defs>
+                {arcs.map((a) => (
+                  <radialGradient key={`g-${a.id}`} id={`g-${a.id}`} cx="50%" cy="50%" r="65%">
+                    <stop offset="0%" stopColor={a.color} stopOpacity="1" />
+                    <stop offset="100%" stopColor={a.color} stopOpacity="0.7" />
+                  </radialGradient>
+                ))}
+              </defs>
+              {arcs.length === 0 ? (
+                <circle cx={CX} cy={CY} r={R} fill="hsl(var(--muted))" />
+              ) : arcs.length === 1 ? (
+                <circle cx={CX} cy={CY} r={R} fill={`url(#g-${arcs[0].id})`} stroke="rgba(0,0,0,0.4)" strokeWidth="2" />
+              ) : arcs.map((a) => <path key={a.id} d={a.d} fill={`url(#g-${a.id})`} stroke="rgba(0,0,0,0.5)" strokeWidth="2" />)}
+              {/* Inner ring */}
+              <circle cx={CX} cy={CY} r={48} fill="hsl(var(--card))" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
+              <circle cx={CX} cy={CY} r={42} fill="none" stroke="rgba(255,215,0,0.6)" strokeWidth="1" />
+              <text x={CX} y={CY - 4} textAnchor="middle" className="fill-foreground" fontSize="10" fontWeight="700">POT</text>
+              <text x={CX} y={CY + 12} textAnchor="middle" className="fill-foreground" fontSize="14" fontWeight="800">{total.toFixed(0)}</text>
+            </svg>
+          </div>
+        </div>
       </div>
 
       <div className="mt-2 text-center">
